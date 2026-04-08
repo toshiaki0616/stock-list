@@ -209,6 +209,34 @@
       return (value || "").trim();
     }
 
+    function normalizeName(value) {
+      return String(value || "").trim().replaceAll(/\s+/g, " ").toLocaleLowerCase("ja");
+    }
+
+    function findDuplicateItem({ name, barcode, location, excludeId = "" }) {
+      const currentId = String(excludeId || "");
+      const normalizedBarcode = normalizeBarcode(barcode);
+      if (normalizedBarcode) {
+        const barcodeMatch = state.items.find(item =>
+          String(item.id) !== currentId &&
+          normalizeBarcode(item.barcode) === normalizedBarcode
+        );
+        if (barcodeMatch) return { item: barcodeMatch, reason: "barcode" };
+      }
+
+      const normalizedName = normalizeName(name);
+      if (!normalizedName) return null;
+
+      const nameMatch = state.items.find(item =>
+        String(item.id) !== currentId &&
+        normalizeName(item.name) === normalizedName &&
+        String(item.location || "") === String(location || "")
+      );
+      if (nameMatch) return { item: nameMatch, reason: "name-location" };
+
+      return null;
+    }
+
     function formatDate(value) {
       if (!value) return "-";
       const d = new Date(value);
@@ -618,6 +646,24 @@
         return;
       }
 
+      let targetId = state.editingId;
+      const duplicate = findDuplicateItem({ name, barcode, location, excludeId: targetId });
+      if (duplicate?.reason === "barcode") {
+        const shouldUpdate = window.confirm(
+          `同じバーコードの「${duplicate.item.name}」があります。\nOK: 既存データを更新\nキャンセル: 保存しない`
+        );
+        if (!shouldUpdate) {
+          setMessage("info", "保存を中止しました");
+          return;
+        }
+        targetId = duplicate.item.id;
+      } else if (duplicate?.reason === "name-location") {
+        const shouldUpdate = window.confirm(
+          `「${duplicate.item.name}」（${duplicate.item.location}）が既にあります。\nOK: 既存データを更新\nキャンセル: 新規作成`
+        );
+        if (shouldUpdate) targetId = duplicate.item.id;
+      }
+
       const now = new Date().toISOString();
       const payload = {
         name,
@@ -629,8 +675,8 @@
       };
 
       let error;
-      if (state.editingId) {
-        ({ error } = await supabase.from(TABLE_NAME).update(payload).eq("id", state.editingId));
+      if (targetId) {
+        ({ error } = await supabase.from(TABLE_NAME).update(payload).eq("id", targetId));
       } else {
         ({ error } = await supabase.from(TABLE_NAME).insert({ ...payload, registered_at: now, created_at: now }));
       }
@@ -643,7 +689,7 @@
       state.editingId = "";
       state.selectedStatus = "ある";
       await fetchItems();
-      if (wasEditing) {
+      if (wasEditing || Boolean(targetId)) {
         renderEditScreen({
           name,
           barcode,
