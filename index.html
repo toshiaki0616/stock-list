@@ -15,9 +15,10 @@
       --success: #dcfce7;
       --warn: #fef3c7;
       --danger: #fee2e2;
+      --nav-safe-space: calc(112px + env(safe-area-inset-bottom, 0px));
     }
     * { box-sizing: border-box; }
-    body { margin: 0; font-family: sans-serif; background: var(--bg); color: var(--text); padding: 16px; }
+    body { margin: 0; font-family: sans-serif; background: var(--bg); color: var(--text); padding: 16px 16px var(--nav-safe-space); }
     .container { max-width: 520px; margin: 0 auto; }
     .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 12px; }
     .title { font-size: 24px; font-weight: 700; margin: 0 0 4px; }
@@ -68,7 +69,7 @@
     .message { border-radius: 12px; padding: 12px; margin-bottom: 12px; font-size: 14px; }
     .message.info { background: #e2e8f0; color: #0f172a; }
     .message.error { background: #fee2e2; color: #991b1b; }
-    .nav { margin-top: 20px; border-top: 1px solid var(--border); background: rgba(255,255,255,0.96); backdrop-filter: blur(8px); }
+    .nav { position: fixed; left: 0; right: 0; bottom: 0; border-top: 1px solid var(--border); background: rgba(255,255,255,0.96); backdrop-filter: blur(8px); padding-bottom: env(safe-area-inset-bottom, 0px); }
     .nav-inner { max-width: 520px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 12px; }
     .config { background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; border-radius: 12px; padding: 12px; margin-bottom: 12px; font-size: 14px; }
     .video-wrap {
