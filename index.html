@@ -156,8 +156,6 @@
     const state = {
       items: [],
       currentScreen: "shopping",
-      query: "",
-      locationFilter: "all",
       scanMessage: "",
       editingId: "",
       selectedStatus: "ある",
@@ -358,28 +356,12 @@
     }
 
     function renderListScreen() {
-      const filteredItems = sortedItems(state.items)
-        .filter(item => state.locationFilter === "all" ? true : item.location === state.locationFilter)
-        .filter(item => {
-          const q = state.query.trim().toLowerCase();
-          if (!q) return true;
-          return (
-            item.name.toLowerCase().includes(q) ||
-            item.location.toLowerCase().includes(q) ||
-            (item.barcode || "").toLowerCase().includes(q)
-          );
-        });
+      const filteredItems = sortedItems(state.items);
 
       let html = `
         <div class="card full-span">
           <div style="font-weight:700; margin-bottom:12px;">在庫一覧</div>
-          <label>検索</label>
-          <input id="queryInput" value="${escapeHtml(state.query)}" placeholder="商品名・バーコードで検索" />
-          <label>保管場所</label>
-          <select id="locationFilterSelect">
-            <option value="all"${state.locationFilter === "all" ? " selected" : ""}>すべて</option>
-            ${LOCATIONS.map(loc => `<option value="${escapeHtml(loc)}"${state.locationFilter === loc ? " selected" : ""}>${escapeHtml(loc)}</option>`).join("")}
-          </select>
+          <div class="small">保管場所ごとに表示</div>
         </div>
       `;
 
@@ -425,8 +407,6 @@
 
       const root = document.getElementById("screen-list");
       root.innerHTML = html;
-      document.getElementById("queryInput")?.addEventListener("input", e => { state.query = e.target.value; renderListScreen(); });
-      document.getElementById("locationFilterSelect")?.addEventListener("change", e => { state.locationFilter = e.target.value; renderListScreen(); });
       root.querySelectorAll("button[data-action='status']").forEach(btn => btn.addEventListener("click", () => updateStatus(btn.dataset.id, btn.dataset.status)));
       root.querySelectorAll("button[data-action='edit']").forEach(btn => btn.addEventListener("click", () => editItem(btn.dataset.id)));
     }
