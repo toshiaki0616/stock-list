@@ -75,6 +75,11 @@
       border: 2px solid rgba(255,255,255,0.85);
       border-radius: 24px;
     }
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+      margin: 6px 4px 4px;
+    }
     @media (orientation: landscape) and (min-width: 900px) {
       body {
         padding-left: 24px;
@@ -363,24 +368,41 @@
       if (filteredItems.length === 0) {
         html += `<div class="card full-span"><div class="empty">該当データなし</div></div>`;
       } else {
-        html += filteredItems.map(item => `
-          <div class="card">
-            <div class="row-between">
-              <div>
-                <div style="font-size:18px; font-weight:700;">${escapeHtml(item.name)}</div>
-                <div class="small">${escapeHtml(item.location)}</div>
+        const grouped = new Map();
+        filteredItems.forEach(item => {
+          if (!grouped.has(item.location)) grouped.set(item.location, []);
+          grouped.get(item.location).push(item);
+        });
+
+        const orderedLocations = LOCATIONS.filter(location => grouped.has(location));
+        const extraLocations = [...grouped.keys()]
+          .filter(location => !LOCATIONS.includes(location))
+          .sort((a, b) => String(a).localeCompare(String(b), "ja"));
+
+        [...orderedLocations, ...extraLocations].forEach(location => {
+          const group = sortedItems(grouped.get(location) || []);
+          if (group.length === 0) return;
+
+          html += `<div class="full-span section-title">${escapeHtml(location)}</div>`;
+          html += group.map(item => `
+            <div class="card">
+              <div class="row-between">
+                <div>
+                  <div style="font-size:18px; font-weight:700;">${escapeHtml(item.name)}</div>
+                  <div class="small">${escapeHtml(item.location)}</div>
+                </div>
+                <div class="badge status-${escapeHtml(item.status)}">${escapeHtml(item.status)}</div>
               </div>
-              <div class="badge status-${escapeHtml(item.status)}">${escapeHtml(item.status)}</div>
+              <div class="small">バーコード: ${escapeHtml(item.barcode || "未登録")}</div>
+              <div class="small">最終再スキャン: ${escapeHtml(formatDate(item.registered_at || item.registeredAt))}</div>
+              ${isEggName(item.name) ? `<div class="small">${escapeHtml(eggCountText(item))}</div>` : ""}
+              <div class="item-actions">
+                ${STATUSES.map(status => `<button class="${item.status === status ? "primary" : ""}" data-action="status" data-id="${escapeHtml(item.id)}" data-status="${escapeHtml(status)}">${status}</button>`).join("")}
+                <button data-action="edit" data-id="${escapeHtml(item.id)}">編集</button>
+              </div>
             </div>
-            <div class="small">バーコード: ${escapeHtml(item.barcode || "未登録")}</div>
-            <div class="small">最終再スキャン: ${escapeHtml(formatDate(item.registered_at || item.registeredAt))}</div>
-            ${isEggName(item.name) ? `<div class="small">${escapeHtml(eggCountText(item))}</div>` : ""}
-            <div class="item-actions">
-              ${STATUSES.map(status => `<button class="${item.status === status ? "primary" : ""}" data-action="status" data-id="${escapeHtml(item.id)}" data-status="${escapeHtml(status)}">${status}</button>`).join("")}
-              <button data-action="edit" data-id="${escapeHtml(item.id)}">編集</button>
-            </div>
-          </div>
-        `).join("");
+          `).join("");
+        });
       }
 
       const root = document.getElementById("screen-list");
