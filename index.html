@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>家庭内食品在庫管理 - Supabase版</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --border: #e5e7eb;
+      --text: #111827;
+      --muted: #64748b;
+      --primary: #111827;
+      --success: #dcfce7;
+      --warn: #fef3c7;
+      --danger: #fee2e2;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: sans-serif; background: var(--bg); color: var(--text); padding: 16px 16px 92px; }
+    .container { max-width: 520px; margin: 0 auto; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; margin-bottom: 12px; }
+    .title { font-size: 24px; font-weight: 700; margin: 0 0 4px; }
+    .sub { color: var(--muted); font-size: 13px; }
+    .row-between { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+    .row { display: flex; gap: 8px; flex-wrap: wrap; }
+    label { display: block; font-size: 13px; margin: 10px 0 6px; }
+    input, select, button { font-size: 16px; font-family: inherit; }
+    input, select { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #cbd5e1; background: #fff; }
+    button { padding: 12px; border-radius: 12px; border: 1px solid #cbd5e1; background: #fff; color: var(--text); font-weight: 700; cursor: pointer; }
+    button.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+    button:disabled { opacity: 0.55; cursor: default; }
+    .hidden { display: none; }
+    .badge { display: inline-block; font-size: 12px; font-weight: 700; padding: 6px 10px; border-radius: 999px; }
+    .status-ある { background: var(--success); }
+    .status-少ない { background: var(--warn); }
+    .status-無い { background: var(--danger); }
+    .small { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .item-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+    .empty { color: var(--muted); text-align: center; padding: 20px 0; }
+    .message { border-radius: 12px; padding: 12px; margin-bottom: 12px; font-size: 14px; }
+    .message.info { background: #e2e8f0; color: #0f172a; }
+    .message.error { background: #fee2e2; color: #991b1b; }
+    .nav { position: fixed; left: 0; right: 0; bottom: 0; border-top: 1px solid var(--border); background: rgba(255,255,255,0.96); backdrop-filter: blur(8px); }
+    .nav-inner { max-width: 520px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 12px; }
+    .config { background: #fffbeb; border: 1px solid #fcd34d; color: #92400e; border-radius: 12px; padding: 12px; margin-bottom: 12px; font-size: 14px; }
+    .video-wrap {
+      position: relative;
+      overflow: hidden;
+      border-radius: 16px;
+      background: #0f172a;
+      aspect-ratio: 3 / 4;
+      margin-bottom: 12px;
+    }
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .video-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #cbd5e1;
+      text-align: center;
+      padding: 24px;
+    }
+    .scan-frame {
+      pointer-events: none;
+      position: absolute;
+      inset: 18%;
+      border: 2px solid rgba(255,255,255,0.85);
+      border-radius: 24px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <div class="row-between">
+        <div>
+          <h1 class="title">家庭内食品在庫管理</h1>
+          <div class="sub">Supabase共有版</div>
+        </div>
+        <button class="primary" id="newButton">新規</button>
+      </div>
+    </div>
+
+    <div id="configNotice" class="config hidden"></div>
+    <div id="globalMessage"></div>
+
+    <div id="screen-list"></div>
+    <div id="screen-edit" class="hidden"></div>
+    <div id="screen-shopping" class="hidden"></div>
+    <div id="screen-scan" class="hidden"></div>
+  </div>
+
+  <div class="nav">
+    <div class="nav-inner">
+      <button id="nav-list">一覧</button>
+      <button id="nav-edit">登録</button>
+      <button id="nav-shopping">買い物</button>
+      <button id="nav-scan">スキャン</button>
+    </div>
+  </div>
+
+  <script type="module">
+    import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+    import { BrowserMultiFormatReader } from "https://esm.sh/@zxing/browser@0.1.5";
+    import { BarcodeFormat, DecodeHintType } from "https://esm.sh/@zxing/library@0.21.3";
+
+    const SUPABASE_URL = "https://dvrdufryalhaivgzveur.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2cmR1ZnJ5YWxoYWl2Z3p2ZXVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2Mzk0OTQsImV4cCI6MjA5MTIxNTQ5NH0.VUCrOuI803r4TRXMtGYF8ST1YKoCUKQuuvL239zunTQ";
+    const TABLE_NAME = "foods";
+    const EGG_NAMES = ["たまご", "卵", "玉子", "タマゴ"];
+    const LOCATIONS = ["冷蔵庫", "冷凍庫", "チューブ", "イケアの棚", "IHの棚"];
+    const STATUSES = ["ある", "少ない", "無い"];
+    const SCAN_COOLDOWN_MS = 2500;
+    const ZXING_FORMATS = [
+      BarcodeFormat.EAN_13,
+      BarcodeFormat.EAN_8,
+      BarcodeFormat.UPC_A,
+      BarcodeFormat.UPC_E,
+      BarcodeFormat.CODE_128,
+      BarcodeFormat.CODE_39,
+      BarcodeFormat.ITF,
+      BarcodeFormat.CODABAR,
+    ];
+
+    const state = {
+      items: [],
+      currentScreen: "list",
+      query: "",
+      locationFilter: "all",
+      scanMessage: "",
+      editingId: "",
+      selectedStatus: "ある",
+      lastScanned: { code: "", at: 0 },
+      loading: false,
+      cameraError: "",
+      cameraActive: false,
+      cameraStarting: false,
+      cameraControls: null,
+      codeReader: null,
+      scanBusy: false,
+      scanSessionId: 0,
+    };
+
+    const configReady = !SUPABASE_URL.includes("YOUR_") && !SUPABASE_ANON_KEY.includes("YOUR_");
+    const supabase = configReady ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
+    function escapeHtml(text) {
+      return String(text ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function isEggName(value) {
+      const name = String(value || "").trim();
+      return EGG_NAMES.includes(name);
+    }
+
+    function eggCountText(item) {
+      if (!isEggName(item.name)) return "";
+      if (item.egg_count === null || item.egg_count === undefined) return "個数未設定";
+      return `残り ${item.egg_count} / 10`;
+    }
+
+    function normalizeBarcode(value) {
+      return (value || "").trim();
+    }
+
+    function formatDate(value) {
+      if (!value) return "-";
+      const d = new Date(value);
+      return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    }
+
+    function setMessage(type, text) {
+      const root = document.getElementById("globalMessage");
+      if (!text) {
+        root.innerHTML = "";
+        return;
+      }
+      root.innerHTML = `<div class="message ${type}">${escapeHtml(text)}</div>`;
+    }
+
+    function setConfigNotice() {
+      const root = document.getElementById("configNotice");
+      if (configReady) {
+        root.classList.add("hidden");
+        root.innerHTML = "";
+        return;
+      }
+      root.classList.remove("hidden");
+      root.innerHTML = "Supabase接続前。YOUR_SUPABASE_URL と YOUR_SUPABASE_ANON_KEY を置き換える。";
+    }
+
+    function setActiveNav() {
+      ["list", "edit", "shopping", "scan"].forEach(key => {
+        const btn = document.getElementById(`nav-${key}`);
+        if (!btn) return;
+        if (key === state.currentScreen) btn.classList.add("primary");
+        else btn.classList.remove("primary");
+      });
+    }
+
+    function buildScannerHints() {
+      const hints = new Map();
+      hints.set(DecodeHintType.POSSIBLE_FORMATS, ZXING_FORMATS);
+      hints.set(DecodeHintType.TRY_HARDER, true);
+      return hints;
+    }
+
+    function createCodeReader() {
+      return new BrowserMultiFormatReader(buildScannerHints());
+    }
+
+    function isIgnorableScanError(error) {
+      const name = error?.name || error?.constructor?.name || "";
+      return ["NotFoundException", "ChecksumException", "FormatException"].includes(name);
+    }
+
+    function formatCameraError(error) {
+      const name = error?.name || error?.constructor?.name || "";
+      if (name === "NotAllowedError") return "カメラ権限が未許可。Chromeの権限設定を確認してください。";
+      if (name === "NotReadableError") return "カメラが他アプリに使用されています。いったん閉じて再試行してください。";
+      if (name === "OverconstrainedError") return "この端末では指定したカメラ条件を満たせませんでした。";
+      if (name === "NotFoundError") return "利用できるカメラが見つかりませんでした。";
+      return error?.message || "カメラを起動できませんでした。";
+    }
+
+    function stopCamera() {
+      state.scanSessionId += 1;
+      state.scanBusy = false;
+
+      if (state.cameraControls?.stop) {
+        try {
+          state.cameraControls.stop();
+        } catch {
+        }
+      }
+
+      if (state.codeReader?.reset) {
+        try {
+          state.codeReader.reset();
+        } catch {
+        }
+      }
+
+      const video = document.getElementById("video");
+      if (video) {
+        try {
+          video.pause();
+        } catch {
+        }
+        video.srcObject = null;
+      }
+
+      state.cameraActive = false;
+      state.cameraStarting = false;
+      state.cameraControls = null;
+      state.codeReader = null;
+    }
+
+    function showScreen(name) {
+      state.currentScreen = name;
+      document.getElementById("screen-list").classList.add("hidden");
+      document.getElementById("screen-edit").classList.add("hidden");
+      document.getElementById("screen-shopping").classList.add("hidden");
+      document.getElementById("screen-scan").classList.add("hidden");
+      document.getElementById(`screen-${name}`).classList.remove("hidden");
+      if (name !== "scan") stopCamera();
+      render();
+    }
+
+    function openNewForm(prefillBarcode = "") {
+      state.editingId = "";
+      state.selectedStatus = "ある";
+      showScreen("edit");
+      renderEditScreen({ name: "", barcode: prefillBarcode, location: "冷蔵庫" });
+    }
+
+    function render() {
+      setActiveNav();
+      renderListScreen();
+      renderShoppingScreen();
+      if (state.currentScreen === "edit") renderEditScreen();
+      if (state.currentScreen === "scan") renderScanScreen();
+    }
+
+    function sortedItems(items) {
+      return [...items].sort((a, b) => {
+        const order = { "無い": 0, "少ない": 1, "ある": 2 };
+        const statusDiff = order[a.status] - order[b.status];
+        if (statusDiff !== 0) return statusDiff;
+        return new Date(b.updated_at || b.updatedAt) - new Date(a.updated_at || a.updatedAt);
+      });
+    }
+
+    function renderListScreen() {
+      const filteredItems = sortedItems(state.items)
+        .filter(item => state.locationFilter === "all" ? true : item.location === state.locationFilter)
+        .filter(item => {
+          const q = state.query.trim().toLowerCase();
+          if (!q) return true;
+          return (
+            item.name.toLowerCase().includes(q) ||
+            item.location.toLowerCase().includes(q) ||
+            (item.barcode || "").toLowerCase().includes(q)
+          );
+        });
+
+      let html = `
+        <div class="card">
+          <div style="font-weight:700; margin-bottom:12px;">在庫一覧</div>
+          <label>検索</label>
+          <input id="queryInput" value="${escapeHtml(state.query)}" placeholder="商品名・バーコードで検索" />
+          <label>保管場所</label>
+          <select id="locationFilterSelect">
+            <option value="all"${state.locationFilter === "all" ? " selected" : ""}>すべて</option>
+            ${LOCATIONS.map(loc => `<option value="${escapeHtml(loc)}"${state.locationFilter === loc ? " selected" : ""}>${escapeHtml(loc)}</option>`).join("")}
+          </select>
+        </div>
+      `;
+
+      if (filteredItems.length === 0) {
+        html += `<div class="card"><div class="empty">該当データなし</div></div>`;
+      } else {
+        html += filteredItems.map(item => `
+          <div class="card">
+            <div class="row-between">
+              <div>
+                <div style="font-size:18px; font-weight:700;">${escapeHtml(item.name)}</div>
+                <div class="small">${escapeHtml(item.location)}</div>
+              </div>
+              <div class="badge status-${escapeHtml(item.status)}">${escapeHtml(item.status)}</div>
+            </div>
+            <div class="small">バーコード: ${escapeHtml(item.barcode || "未登録")}</div>
+            <div class="small">最終再スキャン: ${escapeHtml(formatDate(item.registered_at || item.registeredAt))}</div>
+            ${isEggName(item.name) ? `<div class="small">${escapeHtml(eggCountText(item))}</div>` : ""}
+            <div class="item-actions">
+              ${STATUSES.map(status => `<button class="${item.status === status ? "primary" : ""}" data-action="status" data-id="${escapeHtml(item.id)}" data-status="${escapeHtml(status)}">${status}</button>`).join("")}
+              <button data-action="edit" data-id="${escapeHtml(item.id)}">編集</button>
+            </div>
+          </div>
+        `).join("");
+      }
+
+      const root = document.getElementById("screen-list");
+      root.innerHTML = html;
+      document.getElementById("queryInput")?.addEventListener("input", e => { state.query = e.target.value; renderListScreen(); });
+      document.getElementById("locationFilterSelect")?.addEventListener("change", e => { state.locationFilter = e.target.value; renderListScreen(); });
+      root.querySelectorAll("button[data-action='status']").forEach(btn => btn.addEventListener("click", () => updateStatus(btn.dataset.id, btn.dataset.status)));
+      root.querySelectorAll("button[data-action='edit']").forEach(btn => btn.addEventListener("click", () => editItem(btn.dataset.id)));
+    }
+
+    function renderEditScreen(prefill = null) {
+      const item = state.editingId ? state.items.find(x => String(x.id) === String(state.editingId)) : null;
+      const values = {
+        name: prefill?.name ?? item?.name ?? "",
+        barcode: prefill?.barcode ?? item?.barcode ?? "",
+        location: prefill?.location ?? item?.location ?? "冷蔵庫",
+        egg_count: prefill?.egg_count ?? item?.egg_count ?? 10,
+      };
+      if (item) state.selectedStatus = item.status;
+
+      const html = `
+        <div class="card">
+          <div style="font-weight:700; margin-bottom:12px;">新規登録・編集</div>
+          <label>商品名</label>
+          <input id="form-name" value="${escapeHtml(values.name)}" />
+          <label>バーコード</label>
+          <input id="form-barcode" value="${escapeHtml(values.barcode)}" />
+          <label>保管場所</label>
+          <select id="form-location">
+            ${LOCATIONS.map(loc => `<option value="${escapeHtml(loc)}"${values.location === loc ? " selected" : ""}>${escapeHtml(loc)}</option>`).join("")}
+          </select>
+          ${isEggName(values.name) ? `<label>たまご残数（0〜10）</label>
+          <select id="form-egg-count">
+            ${Array.from({ length: 11 }, (_, i) => `<option value="${10 - i}"${Number(values.egg_count) === 10 - i ? " selected" : ""}>${10 - i}</option>`).join("")}
+          </select>` : ""}
+          <label>状態</label>
+          <div class="row" style="margin-bottom:12px;">
+            ${STATUSES.map(status => `<button data-action="pick-status" data-status="${escapeHtml(status)}" class="${state.selectedStatus === status ? "primary" : ""}" style="flex:1;">${status}</button>`).join("")}
+          </div>
+          <div class="row">
+            <button id="saveFormButton" class="primary" style="flex:1;">保存</button>
+            <button id="clearFormButton" style="flex:1;">クリア</button>
+            <button id="backToListButton" style="flex:1;">戻る</button>
+          </div>
+        </div>
+      `;
+
+      const root = document.getElementById("screen-edit");
+      root.innerHTML = html;
+
+      const rerenderEditWithCurrentValues = () => {
+        renderEditScreen({
+          name: document.getElementById("form-name")?.value || values.name,
+          barcode: document.getElementById("form-barcode")?.value || values.barcode,
+          location: document.getElementById("form-location")?.value || values.location,
+          egg_count: document.getElementById("form-egg-count")?.value ?? values.egg_count,
+        });
+      };
+
+      root.querySelectorAll("button[data-action='pick-status']").forEach(btn => {
+        btn.addEventListener("click", () => {
+          state.selectedStatus = btn.dataset.status;
+          rerenderEditWithCurrentValues();
+        });
+      });
+      document.getElementById("form-name")?.addEventListener("input", event => {
+        const nextName = event.target.value;
+        const eggFieldVisible = Boolean(document.getElementById("form-egg-count"));
+        if (eggFieldVisible !== isEggName(nextName)) {
+          rerenderEditWithCurrentValues();
+        }
+      });
+      document.getElementById("saveFormButton")?.addEventListener("click", saveForm);
+      document.getElementById("clearFormButton")?.addEventListener("click", () => openNewForm());
+      document.getElementById("backToListButton")?.addEventListener("click", () => showScreen("list"));
+    }
+
+    function renderShoppingScreen() {
+      const shoppingItems = sortedItems(state.items.filter(item => item.status === "少ない" || item.status === "無い"));
+      const grouped = {};
+      shoppingItems.forEach(item => {
+        if (!grouped[item.location]) grouped[item.location] = [];
+        grouped[item.location].push(item);
+      });
+
+      let html = `<div class="card"><div style="font-weight:700; margin-bottom:12px;">買い物候補</div>`;
+      if (shoppingItems.length === 0) {
+        html += `<div class="empty">買い物候補なし</div>`;
+      } else {
+        LOCATIONS.forEach(location => {
+          const group = grouped[location] || [];
+          if (group.length === 0) return;
+          html += `<div style="margin-top:12px; font-weight:700;">${escapeHtml(location)}</div>`;
+          html += group.map(item => `
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:8px;">
+              <div>
+                <div style="font-weight:700;">${escapeHtml(item.name)}</div>
+                <div class="small">${escapeHtml(item.location)}</div>
+                ${isEggName(item.name) ? `<div class="small">${escapeHtml(eggCountText(item))}</div>` : ""}
+              </div>
+              <div class="badge status-${escapeHtml(item.status)}">${escapeHtml(item.status)}</div>
+            </div>
+          `).join("");
+        });
+      }
+      html += `</div>`;
+      document.getElementById("screen-shopping").innerHTML = html;
+    }
+
+    function ensureScanScreenMarkup() {
+      const root = document.getElementById("screen-scan");
+      if (root.dataset.initialized === "true") return root;
+
+      root.innerHTML = `
+        <div class="card">
+          <div style="font-weight:700; margin-bottom:12px;">スキャン</div>
+          <div class="video-wrap">
+            <video id="video" playsinline muted style="display:none;"></video>
+            <div id="scanPlaceholder" class="video-placeholder">カメラ停止中</div>
+            <div class="scan-frame"></div>
+          </div>
+          <div class="row" style="margin-bottom:12px;">
+            <button id="startCameraButton" class="primary" style="flex:1;">カメラ開始</button>
+            <button id="stopCameraButton" style="flex:1;">停止</button>
+          </div>
+          <div id="scanErrorBox" class="message error hidden"></div>
+          <div id="scanMessageBox" class="message info hidden"></div>
+          <div id="scanHint" class="small" style="margin-bottom:8px;"></div>
+          <input id="scanInput" inputmode="numeric" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="バーコードを入力" />
+          <button id="manualScanButton" class="primary" style="width:100%; margin-top:8px;">手動で読み取り実行</button>
+        </div>
+      `;
+
+      root.dataset.initialized = "true";
+      return root;
+    }
+
+    function renderScanScreen() {
+      const root = ensureScanScreenMarkup();
+      const video = root.querySelector("#video");
+      const placeholder = root.querySelector("#scanPlaceholder");
+      const startButton = root.querySelector("#startCameraButton");
+      const stopButton = root.querySelector("#stopCameraButton");
+      const errorBox = root.querySelector("#scanErrorBox");
+      const messageBox = root.querySelector("#scanMessageBox");
+      const hint = root.querySelector("#scanHint");
+      const input = root.querySelector("#scanInput");
+      const manualButton = root.querySelector("#manualScanButton");
+
+      startButton.disabled = state.cameraActive || state.cameraStarting;
+      stopButton.disabled = !state.cameraActive && !state.cameraStarting;
+      placeholder.style.display = state.cameraActive ? "none" : "";
+      video.style.display = state.cameraActive ? "" : "none";
+      placeholder.textContent = state.cameraStarting ? "カメラ起動中..." : "カメラ停止中";
+
+      errorBox.textContent = state.cameraError;
+      errorBox.classList.toggle("hidden", !state.cameraError);
+
+      messageBox.textContent = state.scanMessage;
+      messageBox.classList.toggle("hidden", !state.scanMessage);
+
+      hint.textContent = state.cameraActive
+        ? "ZXingで連続スキャン中。バーコードを枠内にまっすぐ入れる"
+        : "BarcodeDetector依存を外し、ZXingでスキャンします。カメラが使えない端末は手動入力できます。";
+
+      startButton.onclick = startCamera;
+      stopButton.onclick = () => {
+        stopCamera();
+        renderScanScreen();
+      };
+      manualButton.onclick = manualScan;
+      input.onkeydown = event => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          manualScan();
+        }
+      };
+    }
+
+    async function fetchItems() {
+      if (!supabase) return;
+      state.loading = true;
+      setMessage("info", "読み込み中...");
+      const { data, error } = await supabase
+        .from(TABLE_NAME)
+        .select("id, name, barcode, location, status, egg_count, registered_at, created_at, updated_at")
+        .order("updated_at", { ascending: false });
+      state.loading = false;
+      if (error) {
+        setMessage("error", `読込失敗: ${error.message}`);
+        return;
+      }
+      state.items = data || [];
+      setMessage("info", "読み込み完了");
+      setTimeout(() => setMessage("", ""), 1200);
+      render();
+    }
+
+    async function saveForm() {
+      const name = (document.getElementById("form-name")?.value || "").trim();
+      const barcode = normalizeBarcode(document.getElementById("form-barcode")?.value || "");
+      const location = document.getElementById("form-location")?.value || "冷蔵庫";
+      const status = state.selectedStatus;
+      const eggCountRaw = document.getElementById("form-egg-count")?.value;
+      const eggCount = eggCountRaw === undefined ? null : Number(eggCountRaw);
+      if (!name) {
+        alert("商品名を入れてください");
+        return;
+      }
+      if (!supabase) {
+        setMessage("error", "Supabase設定未完了");
+        return;
+      }
+
+      const now = new Date().toISOString();
+      const payload = {
+        name,
+        barcode: barcode || null,
+        location,
+        status,
+        egg_count: isEggName(name) ? eggCount : null,
+        updated_at: now,
+      };
+
+      let error;
+      if (state.editingId) {
+        ({ error } = await supabase.from(TABLE_NAME).update(payload).eq("id", state.editingId));
+      } else {
+        ({ error } = await supabase.from(TABLE_NAME).insert({ ...payload, registered_at: now, created_at: now }));
+      }
+
+      if (error) {
+        setMessage("error", `保存失敗: ${error.message}`);
+        return;
+      }
+
+      state.editingId = "";
+      state.selectedStatus = "ある";
+      await fetchItems();
+      showScreen("list");
+    }
+
+    function editItem(id) {
+      state.editingId = id;
+      showScreen("edit");
+    }
+
+    async function updateStatus(id, status) {
+      if (!supabase) {
+        setMessage("error", "Supabase設定未完了");
+        return;
+      }
+      const now = new Date().toISOString();
+      const { error } = await supabase.from(TABLE_NAME).update({ status, updated_at: now }).eq("id", id);
+      if (error) {
+        setMessage("error", `更新失敗: ${error.message}`);
+        return;
+      }
+      await fetchItems();
+    }
+
+    async function processScannedBarcode(rawBarcode) {
+      if (!supabase) {
+        setMessage("error", "Supabase設定未完了");
+        return;
+      }
+
+      const barcode = normalizeBarcode(rawBarcode);
+      if (!barcode) return;
+      const nowMs = Date.now();
+      if (state.lastScanned.code === barcode && nowMs - state.lastScanned.at < SCAN_COOLDOWN_MS) return;
+      state.lastScanned = { code: barcode, at: nowMs };
+
+      const existing = state.items.find(item => item.barcode && normalizeBarcode(item.barcode) === barcode);
+      if (existing) {
+        const now = new Date().toISOString();
+        const { error } = await supabase.from(TABLE_NAME).update({ status: "ある", registered_at: now, updated_at: now }).eq("id", existing.id);
+        if (error) {
+          setMessage("error", `再スキャン失敗: ${error.message}`);
+          return;
+        }
+        state.scanMessage = `再スキャン反映: ${existing.name} を「ある」に更新`;
+        await fetchItems();
+        return;
+      }
+
+      state.scanMessage = "未登録バーコードです。商品名を入れて保存してください。";
+      openNewForm(barcode);
+    }
+
+    async function manualScan() {
+      const input = document.getElementById("scanInput");
+      const code = input?.value || "";
+      await processScannedBarcode(code);
+      if (input) input.value = "";
+    }
+
+    async function startCamera() {
+      if (state.cameraActive || state.cameraStarting) return;
+
+      stopCamera();
+      state.cameraError = "";
+      state.cameraStarting = true;
+      state.scanMessage = "カメラを起動しています...";
+      renderScanScreen();
+
+      try {
+        if (location.protocol === "file:") {
+          throw new Error("file:// ではカメラ起動不可。https か localhost で開いてください。");
+        }
+        if (!navigator.mediaDevices?.getUserMedia) {
+          throw new Error("このブラウザはカメラAPIに未対応です。手動スキャンを使ってください。");
+        }
+
+        const video = document.getElementById("video");
+        if (!video) throw new Error("video要素の取得に失敗");
+
+        const sessionId = state.scanSessionId + 1;
+        state.scanSessionId = sessionId;
+        state.codeReader = createCodeReader();
+
+        const constraints = {
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+          },
+          audio: false,
+        };
+
+        const controls = await state.codeReader.decodeFromConstraints(constraints, video, (result, error) => {
+          if (sessionId !== state.scanSessionId) return;
+
+          if (result) {
+            const rawValue = typeof result.getText === "function" ? result.getText() : (result.text || "");
+            if (!rawValue || state.scanBusy) return;
+
+            state.scanBusy = true;
+            processScannedBarcode(rawValue)
+              .catch(scanError => {
+                setMessage("error", `スキャン処理失敗: ${scanError.message}`);
+              })
+              .finally(() => {
+                window.setTimeout(() => {
+                  if (sessionId === state.scanSessionId) state.scanBusy = false;
+                }, 400);
+              });
+            return;
+          }
+
+          if (error && !isIgnorableScanError(error)) {
+            state.cameraError = formatCameraError(error);
+            renderScanScreen();
+          }
+        });
+
+        if (sessionId !== state.scanSessionId) {
+          controls?.stop?.();
+          return;
+        }
+
+        state.cameraControls = controls;
+        state.cameraActive = true;
+        state.cameraStarting = false;
+        state.cameraError = "";
+        state.scanMessage = "ZXingでスキャン中。バーコードを枠内に入れる";
+        video.play().catch(() => {});
+        renderScanScreen();
+      } catch (error) {
+        state.cameraError = formatCameraError(error);
+        state.cameraStarting = false;
+        stopCamera();
+        renderScanScreen();
+      }
+    }
+
+    document.getElementById("nav-list").addEventListener("click", () => showScreen("list"));
+    document.getElementById("nav-edit").addEventListener("click", () => openNewForm());
+    document.getElementById("nav-shopping").addEventListener("click", () => showScreen("shopping"));
+    document.getElementById("nav-scan").addEventListener("click", () => showScreen("scan"));
+    document.getElementById("newButton").addEventListener("click", () => openNewForm());
+    window.addEventListener("beforeunload", stopCamera);
+    window.addEventListener("pagehide", stopCamera);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        stopCamera();
+        if (state.currentScreen === "scan") renderScanScreen();
+      }
+    });
+
+    async function init() {
+      setConfigNotice();
+      showScreen("list");
+      if (!supabase) return;
+      await fetchItems();
+    }
+
+    init();
+  </script>
+</body>
+</html>
