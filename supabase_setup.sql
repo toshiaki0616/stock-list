@@ -11,7 +11,7 @@ create table if not exists public.foods (
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now()),
   constraint foods_status_check check (status in ('ある', '少ない', '無い')),
-  constraint foods_location_check check (location in ('冷蔵庫', '冷凍庫', 'チューブ', 'イケアの棚', 'IHの棚')),
+  constraint foods_location_check check (location in ('冷蔵庫', '冷凍庫', 'チューブ', 'イケアの棚', 'IHの棚', 'その他')),
   constraint foods_egg_count_check check (egg_count is null or egg_count between 0 and 10)
 );
 
