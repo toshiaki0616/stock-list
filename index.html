@@ -578,6 +578,7 @@
     }
 
     async function saveForm() {
+      const wasEditing = Boolean(state.editingId);
       const name = (document.getElementById("form-name")?.value || "").trim();
       const barcode = normalizeBarcode(document.getElementById("form-barcode")?.value || "");
       const location = document.getElementById("form-location")?.value || "冷蔵庫";
@@ -618,7 +619,19 @@
       state.editingId = "";
       state.selectedStatus = "ある";
       await fetchItems();
-      showScreen("list");
+      if (wasEditing) {
+        renderEditScreen({
+          name,
+          barcode,
+          location,
+          egg_count: isEggName(name) ? eggCount : 10,
+        });
+        setMessage("info", "更新しました");
+        return;
+      }
+
+      renderEditScreen({ name: "", barcode: "", location: "冷蔵庫", egg_count: 10 });
+      setMessage("info", "保存しました。続けて登録できます");
     }
 
     function editItem(id) {
