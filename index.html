@@ -659,6 +659,8 @@
       state.editingId = "";
       state.selectedStatus = "ある";
       await fetchItems();
+
+      showScreen("edit");
       if (wasEditing || Boolean(targetId)) {
         renderEditScreen({
           name,
