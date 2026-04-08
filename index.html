@@ -38,6 +38,32 @@
     .small { font-size: 12px; color: var(--muted); margin-top: 4px; }
     .item-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
     .toggle-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+    .swipe-delete {
+      position: relative;
+      overflow: hidden;
+      border-radius: 16px;
+      margin-bottom: 12px;
+    }
+    .swipe-delete .delete-action {
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      width: 96px;
+      border: none;
+      border-radius: 0 16px 16px 0;
+      background: #dc2626;
+      color: #fff;
+      font-weight: 700;
+    }
+    .swipe-delete .swipe-content {
+      position: relative;
+      z-index: 1;
+      margin-bottom: 0;
+      transition: transform 0.2s ease;
+      touch-action: pan-y;
+      will-change: transform;
+    }
     .empty { color: var(--muted); text-align: center; padding: 20px 0; }
     .message { border-radius: 12px; padding: 12px; margin-bottom: 12px; font-size: 14px; }
     .message.info { background: #e2e8f0; color: #0f172a; }
@@ -142,6 +168,7 @@
     const LOCATIONS = ["冷蔵庫", "冷凍庫", "チューブ", "イケアの棚", "IHの棚"];
     const STATUSES = ["ある", "少ない", "無い"];
     const SCAN_COOLDOWN_MS = 2500;
+    const SWIPE_DELETE_WIDTH = 96;
     const ZXING_FORMATS = [
       BarcodeFormat.EAN_13,
       BarcodeFormat.EAN_8,
@@ -349,6 +376,72 @@
       });
     }
 
+    function closeSwipeCards(root, exceptId = "") {
+      root?.querySelectorAll(".swipe-delete").forEach(card => {
+        if (exceptId && card.dataset.id === exceptId) return;
+        card.dataset.open = "false";
+        const content = card.querySelector(".swipe-content");
+        if (content) content.style.transform = "translateX(0)";
+      });
+    }
+
+    function bindSwipeDeleteCards(root) {
+      const cards = root.querySelectorAll(".swipe-delete");
+      cards.forEach(card => {
+        const content = card.querySelector(".swipe-content");
+        if (!content) return;
+
+        let startX = 0;
+        let currentX = 0;
+        let dragging = false;
+        let openAtStart = false;
+
+        const applyOffset = offset => {
+          const clamped = Math.max(-SWIPE_DELETE_WIDTH, Math.min(0, offset));
+          content.style.transform = `translateX(${clamped}px)`;
+        };
+
+        card.addEventListener("touchstart", event => {
+          if (event.touches.length !== 1) return;
+          startX = event.touches[0].clientX;
+          currentX = startX;
+          dragging = false;
+          openAtStart = card.dataset.open === "true";
+        }, { passive: true });
+
+        card.addEventListener("touchmove", event => {
+          if (event.touches.length !== 1) return;
+          currentX = event.touches[0].clientX;
+          const deltaX = currentX - startX;
+          if (!dragging && Math.abs(deltaX) < 10) return;
+          dragging = true;
+          const baseOffset = openAtStart ? -SWIPE_DELETE_WIDTH : 0;
+          applyOffset(baseOffset + deltaX);
+        }, { passive: true });
+
+        card.addEventListener("touchend", () => {
+          if (!dragging) return;
+          const deltaX = currentX - startX;
+          const shouldOpen = openAtStart ? deltaX > -40 : deltaX < -40;
+          if (shouldOpen) {
+            closeSwipeCards(root, card.dataset.id);
+            card.dataset.open = "true";
+            applyOffset(-SWIPE_DELETE_WIDTH);
+          } else {
+            card.dataset.open = "false";
+            applyOffset(0);
+          }
+        });
+
+        card.addEventListener("click", event => {
+          if (card.dataset.open === "true" && !event.target.closest(".delete-action")) {
+            card.dataset.open = "false";
+            applyOffset(0);
+          }
+        });
+      });
+    }
+
     function renderListScreen() {
       const filteredItems = sortedItems(state.items);
 
@@ -379,20 +472,23 @@
 
           html += `<div class="full-span section-title">${escapeHtml(location)}</div>`;
           html += group.map(item => `
-            <div class="card">
-              <div class="row-between">
-                <div>
-                  <div style="font-size:18px; font-weight:700;">${escapeHtml(item.name)}</div>
-                  <div class="small">${escapeHtml(item.location)}</div>
+            <div class="swipe-delete" data-id="${escapeHtml(item.id)}" data-open="false">
+              <button class="delete-action" data-action="delete" data-id="${escapeHtml(item.id)}">削除</button>
+              <div class="card swipe-content">
+                <div class="row-between">
+                  <div>
+                    <div style="font-size:18px; font-weight:700;">${escapeHtml(item.name)}</div>
+                    <div class="small">${escapeHtml(item.location)}</div>
+                  </div>
+                  <div class="badge status-${escapeHtml(item.status)}">${escapeHtml(item.status)}</div>
                 </div>
-                <div class="badge status-${escapeHtml(item.status)}">${escapeHtml(item.status)}</div>
-              </div>
-              <div class="small">バーコード: ${escapeHtml(item.barcode || "未登録")}</div>
-              <div class="small">最終再スキャン: ${escapeHtml(formatDate(item.registered_at || item.registeredAt))}</div>
-              ${item.egg_count !== null && item.egg_count !== undefined ? `<div class="small">${escapeHtml(quantityText(item))}</div>` : ""}
-              <div class="item-actions">
-                ${STATUSES.map(status => `<button class="${item.status === status ? "primary" : ""}" data-action="status" data-id="${escapeHtml(item.id)}" data-status="${escapeHtml(status)}">${status}</button>`).join("")}
-                <button data-action="edit" data-id="${escapeHtml(item.id)}">編集</button>
+                <div class="small">バーコード: ${escapeHtml(item.barcode || "未登録")}</div>
+                <div class="small">最終再スキャン: ${escapeHtml(formatDate(item.registered_at || item.registeredAt))}</div>
+                ${item.egg_count !== null && item.egg_count !== undefined ? `<div class="small">${escapeHtml(quantityText(item))}</div>` : ""}
+                <div class="item-actions">
+                  ${STATUSES.map(status => `<button class="${item.status === status ? "primary" : ""}" data-action="status" data-id="${escapeHtml(item.id)}" data-status="${escapeHtml(status)}">${status}</button>`).join("")}
+                  <button data-action="edit" data-id="${escapeHtml(item.id)}">編集</button>
+                </div>
               </div>
             </div>
           `).join("");
@@ -401,8 +497,13 @@
 
       const root = document.getElementById("screen-list");
       root.innerHTML = html;
+      bindSwipeDeleteCards(root);
       root.querySelectorAll("button[data-action='status']").forEach(btn => btn.addEventListener("click", () => updateStatus(btn.dataset.id, btn.dataset.status)));
       root.querySelectorAll("button[data-action='edit']").forEach(btn => btn.addEventListener("click", () => editItem(btn.dataset.id)));
+      root.querySelectorAll("button[data-action='delete']").forEach(btn => btn.addEventListener("click", event => {
+        event.stopPropagation();
+        deleteItem(btn.dataset.id);
+      }));
     }
 
     function renderEditScreen(prefill = null) {
@@ -715,6 +816,28 @@
         setMessage("error", `更新失敗: ${error.message}`);
         return;
       }
+      await fetchItems();
+    }
+
+    async function deleteItem(id) {
+      if (!supabase) {
+        setMessage("error", "Supabase設定未完了");
+        return;
+      }
+
+      const item = state.items.find(entry => String(entry.id) === String(id));
+      if (!item) return;
+
+      const shouldDelete = window.confirm(`「${item.name}」を削除しますか？`);
+      if (!shouldDelete) return;
+
+      const { error } = await supabase.from(TABLE_NAME).delete().eq("id", id);
+      if (error) {
+        setMessage("error", `削除失敗: ${error.message}`);
+        return;
+      }
+
+      setMessage("info", `「${item.name}」を削除しました`);
       await fetchItems();
     }
 
