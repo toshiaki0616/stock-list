@@ -328,7 +328,9 @@
         const order = { "無い": 0, "少ない": 1, "ある": 2 };
         const statusDiff = order[a.status] - order[b.status];
         if (statusDiff !== 0) return statusDiff;
-        return new Date(b.updated_at || b.updatedAt) - new Date(a.updated_at || a.updatedAt);
+        const nameDiff = String(a.name || "").localeCompare(String(b.name || ""), "ja");
+        if (nameDiff !== 0) return nameDiff;
+        return String(a.location || "").localeCompare(String(b.location || ""), "ja");
       });
     }
 
