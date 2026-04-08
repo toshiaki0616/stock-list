@@ -183,6 +183,7 @@
     const state = {
       items: [],
       currentScreen: "shopping",
+      editReturnScreen: "edit",
       scanMessage: "",
       editingId: "",
       selectedStatus: "ある",
@@ -352,6 +353,7 @@
 
     function openNewForm(prefillBarcode = "") {
       state.editingId = "";
+      state.editReturnScreen = "edit";
       state.selectedStatus = "ある";
       showScreen("edit");
       renderEditScreen({ name: "", barcode: prefillBarcode, location: "冷蔵庫" });
@@ -783,8 +785,13 @@
       state.selectedStatus = "ある";
       await fetchItems();
 
-      showScreen("edit");
       if (wasEditing || Boolean(targetId)) {
+        const returnScreen = wasEditing ? state.editReturnScreen : "edit";
+        showScreen(returnScreen);
+        if (returnScreen !== "edit") {
+          setMessage("info", "更新しました");
+          return;
+        }
         renderEditScreen({
           name,
           barcode,
@@ -796,12 +803,14 @@
         return;
       }
 
+      showScreen("edit");
       renderEditScreen({ name: "", barcode: "", location: "冷蔵庫", egg_count: 0, quantity_enabled: false });
       setMessage("info", "保存しました。続けて登録できます");
     }
 
     function editItem(id) {
       state.editingId = id;
+      state.editReturnScreen = state.currentScreen;
       showScreen("edit");
     }
 
