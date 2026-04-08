@@ -138,9 +138,20 @@
       border-radius: 24px;
     }
     .section-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
       font-size: 18px;
       font-weight: 700;
-      margin: 6px 4px 4px;
+      margin: 10px 4px 8px;
+      color: #0f172a;
+    }
+    .section-title::after {
+      content: "";
+      flex: 1;
+      height: 2px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, #cbd5e1 0%, #e2e8f0 100%);
     }
     @media (orientation: landscape) and (min-width: 900px) {
       body {
