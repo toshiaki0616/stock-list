@@ -37,6 +37,7 @@
     .status-無い { background: var(--danger); }
     .small { font-size: 12px; color: var(--muted); margin-top: 4px; }
     .item-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+    .toggle-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
     .empty { color: var(--muted); text-align: center; padding: 20px 0; }
     .message { border-radius: 12px; padding: 12px; margin-bottom: 12px; font-size: 14px; }
     .message.info { background: #e2e8f0; color: #0f172a; }
@@ -138,7 +139,6 @@
     const SUPABASE_URL = "https://dvrdufryalhaivgzveur.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2cmR1ZnJ5YWxoYWl2Z3p2ZXVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2Mzk0OTQsImV4cCI6MjA5MTIxNTQ5NH0.VUCrOuI803r4TRXMtGYF8ST1YKoCUKQuuvL239zunTQ";
     const TABLE_NAME = "foods";
-    const EGG_NAMES = ["たまご", "卵", "玉子", "タマゴ"];
     const LOCATIONS = ["冷蔵庫", "冷凍庫", "チューブ", "イケアの棚", "IHの棚"];
     const STATUSES = ["ある", "少ない", "無い"];
     const SCAN_COOLDOWN_MS = 2500;
@@ -182,15 +182,9 @@
         .replaceAll("'", "&#039;");
     }
 
-    function isEggName(value) {
-      const name = String(value || "").trim();
-      return EGG_NAMES.includes(name);
-    }
-
-    function eggCountText(item) {
-      if (!isEggName(item.name)) return "";
+    function quantityText(item) {
       if (item.egg_count === null || item.egg_count === undefined) return "個数未設定";
-      return `残り ${item.egg_count} / 10`;
+      return `数量 ${item.egg_count} / 10`;
     }
 
     function normalizeBarcode(value) {
@@ -395,7 +389,7 @@
               </div>
               <div class="small">バーコード: ${escapeHtml(item.barcode || "未登録")}</div>
               <div class="small">最終再スキャン: ${escapeHtml(formatDate(item.registered_at || item.registeredAt))}</div>
-              ${isEggName(item.name) ? `<div class="small">${escapeHtml(eggCountText(item))}</div>` : ""}
+              ${item.egg_count !== null && item.egg_count !== undefined ? `<div class="small">${escapeHtml(quantityText(item))}</div>` : ""}
               <div class="item-actions">
                 ${STATUSES.map(status => `<button class="${item.status === status ? "primary" : ""}" data-action="status" data-id="${escapeHtml(item.id)}" data-status="${escapeHtml(status)}">${status}</button>`).join("")}
                 <button data-action="edit" data-id="${escapeHtml(item.id)}">編集</button>
@@ -417,7 +411,8 @@
         name: prefill?.name ?? item?.name ?? "",
         barcode: prefill?.barcode ?? item?.barcode ?? "",
         location: prefill?.location ?? item?.location ?? "冷蔵庫",
-        egg_count: prefill?.egg_count ?? item?.egg_count ?? 10,
+        egg_count: prefill?.egg_count ?? item?.egg_count ?? 0,
+        quantity_enabled: prefill?.quantity_enabled ?? (item?.egg_count !== null && item?.egg_count !== undefined) ?? false,
       };
       if (item) state.selectedStatus = item.status;
 
@@ -432,10 +427,17 @@
           <select id="form-location">
             ${LOCATIONS.map(loc => `<option value="${escapeHtml(loc)}"${values.location === loc ? " selected" : ""}>${escapeHtml(loc)}</option>`).join("")}
           </select>
-          ${isEggName(values.name) ? `<label>たまご残数（0〜10）</label>
-          <select id="form-egg-count">
-            ${Array.from({ length: 11 }, (_, i) => `<option value="${10 - i}"${Number(values.egg_count) === 10 - i ? " selected" : ""}>${10 - i}</option>`).join("")}
-          </select>` : ""}
+          <label>数量管理</label>
+          <div class="row" style="margin-bottom:12px;">
+            <button id="quantityToggleButton" type="button" class="${values.quantity_enabled ? "primary" : ""}" style="flex:1;">${values.quantity_enabled ? "数量あり" : "数量なし"}</button>
+          </div>
+          ${values.quantity_enabled ? `<label>数量（0〜10）</label>
+          <div id="form-quantity-toggle" class="toggle-grid" style="margin-bottom:12px;">
+            ${Array.from({ length: 11 }, (_, i) => {
+              const value = i;
+              return `<button type="button" data-action="pick-quantity" data-value="${value}" class="${Number(values.egg_count) === value ? "primary" : ""}">${value}</button>`;
+            }).join("")}
+          </div>` : ""}
           <label>状態</label>
           <div class="row" style="margin-bottom:12px;">
             ${STATUSES.map(status => `<button data-action="pick-status" data-status="${escapeHtml(status)}" class="${state.selectedStatus === status ? "primary" : ""}" style="flex:1;">${status}</button>`).join("")}
@@ -451,12 +453,18 @@
       const root = document.getElementById("screen-edit");
       root.innerHTML = html;
 
+      const getCurrentQuantityValue = () => {
+        const selected = root.querySelector("button[data-action='pick-quantity'].primary");
+        return selected ? Number(selected.dataset.value) : values.egg_count;
+      };
+
       const rerenderEditWithCurrentValues = () => {
         renderEditScreen({
           name: document.getElementById("form-name")?.value || values.name,
           barcode: document.getElementById("form-barcode")?.value || values.barcode,
           location: document.getElementById("form-location")?.value || values.location,
-          egg_count: document.getElementById("form-egg-count")?.value ?? values.egg_count,
+          egg_count: getCurrentQuantityValue(),
+          quantity_enabled: document.getElementById("quantityToggleButton")?.classList.contains("primary") ?? values.quantity_enabled,
         });
       };
 
@@ -466,12 +474,25 @@
           rerenderEditWithCurrentValues();
         });
       });
-      document.getElementById("form-name")?.addEventListener("input", event => {
-        const nextName = event.target.value;
-        const eggFieldVisible = Boolean(document.getElementById("form-egg-count"));
-        if (eggFieldVisible !== isEggName(nextName)) {
-          rerenderEditWithCurrentValues();
-        }
+      document.getElementById("quantityToggleButton")?.addEventListener("click", () => {
+        renderEditScreen({
+          name: document.getElementById("form-name")?.value || values.name,
+          barcode: document.getElementById("form-barcode")?.value || values.barcode,
+          location: document.getElementById("form-location")?.value || values.location,
+          egg_count: getCurrentQuantityValue(),
+          quantity_enabled: !values.quantity_enabled,
+        });
+      });
+      root.querySelectorAll("button[data-action='pick-quantity']").forEach(btn => {
+        btn.addEventListener("click", () => {
+          renderEditScreen({
+            name: document.getElementById("form-name")?.value || values.name,
+            barcode: document.getElementById("form-barcode")?.value || values.barcode,
+            location: document.getElementById("form-location")?.value || values.location,
+            egg_count: Number(btn.dataset.value),
+            quantity_enabled: true,
+          });
+        });
       });
       document.getElementById("saveFormButton")?.addEventListener("click", saveForm);
       document.getElementById("clearFormButton")?.addEventListener("click", () => openNewForm());
@@ -499,7 +520,7 @@
               <div>
                 <div style="font-weight:700;">${escapeHtml(item.name)}</div>
                 <div class="small">${escapeHtml(item.location)}</div>
-                ${isEggName(item.name) ? `<div class="small">${escapeHtml(eggCountText(item))}</div>` : ""}
+                ${item.egg_count !== null && item.egg_count !== undefined ? `<div class="small">${escapeHtml(quantityText(item))}</div>` : ""}
               </div>
               <div class="badge status-${escapeHtml(item.status)}">${escapeHtml(item.status)}</div>
             </div>
@@ -605,8 +626,9 @@
       const barcode = normalizeBarcode(document.getElementById("form-barcode")?.value || "");
       const location = document.getElementById("form-location")?.value || "冷蔵庫";
       const status = state.selectedStatus;
-      const eggCountRaw = document.getElementById("form-egg-count")?.value;
-      const eggCount = eggCountRaw === undefined ? null : Number(eggCountRaw);
+      const quantityEnabled = document.getElementById("quantityToggleButton")?.classList.contains("primary") ?? false;
+      const quantityValue = document.querySelector("button[data-action='pick-quantity'].primary")?.dataset.value;
+      const eggCount = quantityEnabled ? Number(quantityValue ?? 0) : null;
       if (!name) {
         alert("商品名を入れてください");
         return;
@@ -640,7 +662,7 @@
         barcode: barcode || null,
         location,
         status,
-        egg_count: isEggName(name) ? eggCount : null,
+        egg_count: quantityEnabled ? eggCount : null,
         updated_at: now,
       };
 
@@ -666,13 +688,14 @@
           name,
           barcode,
           location,
-          egg_count: isEggName(name) ? eggCount : 10,
+          egg_count: quantityEnabled ? eggCount : 0,
+          quantity_enabled: quantityEnabled,
         });
         setMessage("info", "更新しました");
         return;
       }
 
-      renderEditScreen({ name: "", barcode: "", location: "冷蔵庫", egg_count: 10 });
+      renderEditScreen({ name: "", barcode: "", location: "冷蔵庫", egg_count: 0, quantity_enabled: false });
       setMessage("info", "保存しました。続けて登録できます");
     }
 
