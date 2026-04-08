@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>家庭内食品在庫管理 - Supabase版</title>
+  <title>買い物リスト</title>
   <style>
     :root {
       --bg: #f8fafc;
@@ -112,16 +112,6 @@
 </head>
 <body>
   <div class="container">
-    <div class="card">
-      <div class="row-between">
-        <div>
-          <h1 class="title">家庭内食品在庫管理</h1>
-          <div class="sub">Supabase共有版</div>
-        </div>
-        <button class="primary" id="newButton">新規</button>
-      </div>
-    </div>
-
     <div id="configNotice" class="config hidden"></div>
     <div id="globalMessage"></div>
 
@@ -165,7 +155,7 @@
 
     const state = {
       items: [],
-      currentScreen: "list",
+      currentScreen: "shopping",
       query: "",
       locationFilter: "all",
       scanMessage: "",
@@ -842,7 +832,6 @@
     document.getElementById("nav-edit").addEventListener("click", () => openNewForm());
     document.getElementById("nav-shopping").addEventListener("click", () => showScreen("shopping"));
     document.getElementById("nav-scan").addEventListener("click", () => showScreen("scan"));
-    document.getElementById("newButton").addEventListener("click", () => openNewForm());
     window.addEventListener("beforeunload", stopCamera);
     window.addEventListener("pagehide", stopCamera);
     document.addEventListener("visibilitychange", () => {
@@ -854,7 +843,7 @@
 
     async function init() {
       setConfigNotice();
-      showScreen("list");
+      showScreen("shopping");
       if (!supabase) return;
       await fetchItems();
     }
