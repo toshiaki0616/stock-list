@@ -138,16 +138,34 @@
       border-radius: 24px;
     }
     .section-title {
-      display: block;
-      font-size: 18px;
-      font-weight: 700;
-      margin: 10px 4px 10px;
-      padding: 10px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      font-size: 20px;
+      font-weight: 800;
+      margin: 12px 4px 12px;
+      padding: 14px 16px;
       color: #0f172a;
-      background: #f8fafc;
-      border: 1px solid #cbd5e1;
-      border-radius: 14px;
-      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+      background: linear-gradient(135deg, #dbeafe 0%, #eff6ff 52%, #f8fafc 100%);
+      border: 1px solid #93c5fd;
+      border-radius: 16px;
+      box-shadow: 0 10px 24px rgba(59, 130, 246, 0.12);
+    }
+    .section-title-name {
+      letter-spacing: 0.03em;
+    }
+    .section-title-count {
+      flex-shrink: 0;
+      min-width: 44px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid rgba(147, 197, 253, 0.9);
+      color: #1d4ed8;
+      font-size: 12px;
+      font-weight: 800;
+      text-align: center;
     }
     @media (orientation: landscape) and (min-width: 900px) {
       body {
@@ -512,7 +530,7 @@
           const group = sortedItems(grouped.get(location) || []);
           if (group.length === 0) return;
 
-          html += `<div class="full-span section-title">${escapeHtml(location)}</div>`;
+          html += `<div class="full-span section-title"><span class="section-title-name">${escapeHtml(location)}</span><span class="section-title-count">${group.length}件</span></div>`;
           html += group.map(item => `
             <div class="swipe-delete" data-id="${escapeHtml(item.id)}" data-open="false">
               <button class="delete-action" data-action="delete" data-id="${escapeHtml(item.id)}">削除</button>
