@@ -411,12 +411,10 @@
 
     function sortedItems(items) {
       return [...items].sort((a, b) => {
-        const order = { "無い": 0, "少ない": 1, "ある": 2 };
-        const statusDiff = order[a.status] - order[b.status];
-        if (statusDiff !== 0) return statusDiff;
-        const nameDiff = String(a.name || "").localeCompare(String(b.name || ""), "ja");
-        if (nameDiff !== 0) return nameDiff;
-        return String(a.location || "").localeCompare(String(b.location || ""), "ja");
+        const aTime = Date.parse(a.created_at || a.createdAt || "") || 0;
+        const bTime = Date.parse(b.created_at || b.createdAt || "") || 0;
+        if (aTime !== bTime) return aTime - bTime;
+        return String(a.name || "").localeCompare(String(b.name || ""), "ja");
       });
     }
 
@@ -753,7 +751,7 @@
       const { data, error } = await supabase
         .from(TABLE_NAME)
         .select("id, name, barcode, location, status, egg_count, registered_at, created_at, updated_at")
-        .order("updated_at", { ascending: false });
+        .order("created_at", { ascending: true });
       state.loading = false;
       if (error) {
         setMessage("error", `読込失敗: ${error.message}`);
