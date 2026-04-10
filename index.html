@@ -557,12 +557,12 @@
       const cards = root.querySelectorAll(".swipe-mark");
       cards.forEach(card => {
         const content = card.querySelector(".swipe-content");
+        const actionButton = card.querySelector(".mark-action");
         if (!content) return;
 
         let startX = 0;
         let currentX = 0;
         let dragging = false;
-        let openAtStart = false;
 
         const applyOffset = offset => {
           const clamped = Math.max(0, Math.min(SWIPE_DELETE_WIDTH, offset));
@@ -574,7 +574,6 @@
           startX = event.touches[0].clientX;
           currentX = startX;
           dragging = false;
-          openAtStart = card.dataset.open === "true";
         }, { passive: true });
 
         card.addEventListener("touchmove", event => {
@@ -583,27 +582,17 @@
           const deltaX = currentX - startX;
           if (!dragging && Math.abs(deltaX) < 10) return;
           dragging = true;
-          const baseOffset = openAtStart ? SWIPE_DELETE_WIDTH : 0;
-          applyOffset(baseOffset + deltaX);
+          applyOffset(deltaX);
         }, { passive: true });
 
         card.addEventListener("touchend", () => {
           if (!dragging) return;
           const deltaX = currentX - startX;
-          const shouldOpen = openAtStart ? deltaX < 40 : deltaX > 40;
-          if (shouldOpen) {
-            card.dataset.open = "true";
-            applyOffset(SWIPE_DELETE_WIDTH);
-          } else {
-            card.dataset.open = "false";
-            applyOffset(0);
-          }
-        });
+          card.dataset.open = "false";
+          applyOffset(0);
 
-        card.addEventListener("click", event => {
-          if (card.dataset.open === "true" && !event.target.closest(".mark-action")) {
-            card.dataset.open = "false";
-            applyOffset(0);
+          if (deltaX > 40 && actionButton?.dataset.id && actionButton?.dataset.status) {
+            updateStatus(actionButton.dataset.id, actionButton.dataset.status);
           }
         });
       });
