@@ -177,6 +177,7 @@
       border: 1px solid #93c5fd;
       border-radius: 16px;
       box-shadow: 0 10px 24px rgba(59, 130, 246, 0.12);
+      scroll-margin-top: 18px;
     }
     .section-title-name {
       letter-spacing: 0.03em;
@@ -192,6 +193,29 @@
       font-size: 12px;
       font-weight: 800;
       text-align: center;
+    }
+    .list-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .location-jump-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+    .location-jump {
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid #bfdbfe;
+      background: #eff6ff;
+      color: #1d4ed8;
+      font-size: 13px;
+      font-weight: 700;
+      box-shadow: none;
     }
     @media (max-width: 899px) {
       #screen-list:not(.hidden) {
@@ -216,6 +240,13 @@
       #screen-list .item-actions button {
         padding: 10px 8px;
         font-size: 15px;
+      }
+      .list-header {
+        align-items: stretch;
+      }
+      .location-jump-list {
+        width: 100%;
+        justify-content: flex-start;
       }
     }
     @media (orientation: landscape) and (min-width: 900px) {
@@ -320,6 +351,10 @@
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
+    }
+
+    function locationAnchorId(location) {
+      return `location-${encodeURIComponent(String(location ?? ""))}`;
     }
 
     function quantityText(item) {
@@ -601,33 +636,37 @@
 
     function renderListScreen() {
       const filteredItems = sortedItems(state.items);
+      const grouped = new Map();
+      filteredItems.forEach(item => {
+        if (!grouped.has(item.location)) grouped.set(item.location, []);
+        grouped.get(item.location).push(item);
+      });
+
+      const orderedLocations = LOCATIONS.filter(location => grouped.has(location));
+      const extraLocations = [...grouped.keys()]
+        .filter(location => !LOCATIONS.includes(location))
+        .sort((a, b) => String(a).localeCompare(String(b), "ja"));
+      const visibleLocations = [...orderedLocations, ...extraLocations];
 
       let html = `
         <div class="card full-span">
-          <div style="font-weight:700; margin-bottom:12px;">在庫一覧</div>
-          <div class="small">保管場所ごとに表示</div>
+          <div class="list-header">
+            <div>
+              <div style="font-weight:700; margin-bottom:12px;">在庫一覧</div>
+              <div class="small">保管場所ごとに表示</div>
+            </div>
+            ${visibleLocations.length ? `<div class="location-jump-list">${visibleLocations.map(location => `<button class="location-jump" data-action="jump-location" data-target="${escapeHtml(locationAnchorId(location))}">${escapeHtml(location)}</button>`).join("")}</div>` : ""}
+          </div>
         </div>
       `;
-
       if (filteredItems.length === 0) {
         html += `<div class="card full-span"><div class="empty">該当データなし</div></div>`;
       } else {
-        const grouped = new Map();
-        filteredItems.forEach(item => {
-          if (!grouped.has(item.location)) grouped.set(item.location, []);
-          grouped.get(item.location).push(item);
-        });
-
-        const orderedLocations = LOCATIONS.filter(location => grouped.has(location));
-        const extraLocations = [...grouped.keys()]
-          .filter(location => !LOCATIONS.includes(location))
-          .sort((a, b) => String(a).localeCompare(String(b), "ja"));
-
-        [...orderedLocations, ...extraLocations].forEach(location => {
+        visibleLocations.forEach(location => {
           const group = sortedItems(grouped.get(location) || []);
           if (group.length === 0) return;
 
-          html += `<div class="full-span section-title"><span class="section-title-name">${escapeHtml(location)}</span><span class="section-title-count">${group.length}件</span></div>`;
+          html += `<div id="${escapeHtml(locationAnchorId(location))}" class="full-span section-title"><span class="section-title-name">${escapeHtml(location)}</span><span class="section-title-count">${group.length}件</span></div>`;
           html += group.map(item => `
             <div class="swipe-delete" data-id="${escapeHtml(item.id)}" data-open="false">
               <button class="delete-action" data-action="delete" data-id="${escapeHtml(item.id)}">削除</button>
@@ -657,6 +696,10 @@
       bindSwipeDeleteCards(root);
       root.querySelectorAll("button[data-action='status']").forEach(btn => btn.addEventListener("click", () => updateStatus(btn.dataset.id, btn.dataset.status)));
       root.querySelectorAll("button[data-action='edit']").forEach(btn => btn.addEventListener("click", () => editItem(btn.dataset.id)));
+      root.querySelectorAll("button[data-action='jump-location']").forEach(btn => btn.addEventListener("click", () => {
+        const target = document.getElementById(btn.dataset.target || "");
+        target?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }));
       root.querySelectorAll("button[data-action='delete']").forEach(btn => btn.addEventListener("click", event => {
         event.stopPropagation();
         deleteItem(btn.dataset.id);
