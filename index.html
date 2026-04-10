@@ -50,7 +50,7 @@
       top: 0;
       right: 0;
       bottom: 0;
-      width: 96px;
+      width: 76px;
       border: none;
       border-radius: 0 16px 16px 0;
       background: #dc2626;
@@ -279,7 +279,8 @@
     const LOCATIONS = ["冷蔵庫", "冷凍庫", "チューブ", "イケアの棚", "IHの棚", "その他"];
     const STATUSES = ["ある", "少ない", "無い"];
     const SCAN_COOLDOWN_MS = 2500;
-    const SWIPE_DELETE_WIDTH = 96;
+    const DELETE_SWIPE_WIDTH = 76;
+    const MARK_SWIPE_WIDTH = 96;
     const ZXING_FORMATS = [
       BarcodeFormat.EAN_13,
       BarcodeFormat.EAN_8,
@@ -508,7 +509,7 @@
         let openAtStart = false;
 
         const applyOffset = offset => {
-          const clamped = Math.max(-SWIPE_DELETE_WIDTH, Math.min(0, offset));
+          const clamped = Math.max(-DELETE_SWIPE_WIDTH, Math.min(0, offset));
           content.style.transform = `translateX(${clamped}px)`;
         };
 
@@ -526,7 +527,7 @@
           const deltaX = currentX - startX;
           if (!dragging && Math.abs(deltaX) < 10) return;
           dragging = true;
-          const baseOffset = openAtStart ? -SWIPE_DELETE_WIDTH : 0;
+          const baseOffset = openAtStart ? -DELETE_SWIPE_WIDTH : 0;
           applyOffset(baseOffset + deltaX);
         }, { passive: true });
 
@@ -537,7 +538,7 @@
           if (shouldOpen) {
             closeSwipeCards(root, card.dataset.id);
             card.dataset.open = "true";
-            applyOffset(-SWIPE_DELETE_WIDTH);
+            applyOffset(-DELETE_SWIPE_WIDTH);
           } else {
             card.dataset.open = "false";
             applyOffset(0);
@@ -565,7 +566,7 @@
         let dragging = false;
 
         const applyOffset = offset => {
-          const clamped = Math.max(0, Math.min(SWIPE_DELETE_WIDTH, offset));
+          const clamped = Math.max(0, Math.min(MARK_SWIPE_WIDTH, offset));
           content.style.transform = `translateX(${clamped}px)`;
         };
 
