@@ -193,6 +193,31 @@
       font-weight: 800;
       text-align: center;
     }
+    @media (max-width: 899px) {
+      #screen-list:not(.hidden) {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+        align-items: start;
+      }
+      #screen-list > .card,
+      #screen-list > .swipe-delete {
+        margin-bottom: 0;
+      }
+      #screen-list > .full-span {
+        grid-column: 1 / -1;
+      }
+      #screen-list .card {
+        padding: 14px;
+      }
+      #screen-list .item-actions {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      #screen-list .item-actions button {
+        padding: 10px 8px;
+        font-size: 15px;
+      }
+    }
     @media (orientation: landscape) and (min-width: 900px) {
       body {
         padding-left: 24px;
