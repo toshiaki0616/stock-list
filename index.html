@@ -65,6 +65,32 @@
       touch-action: pan-y;
       will-change: transform;
     }
+    .swipe-mark {
+      position: relative;
+      overflow: hidden;
+      border-radius: 12px;
+      margin-bottom: 8px;
+    }
+    .swipe-mark .mark-action {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 96px;
+      border: none;
+      border-radius: 12px 0 0 12px;
+      background: #16a34a;
+      color: #fff;
+      font-weight: 700;
+    }
+    .swipe-mark .swipe-content {
+      position: relative;
+      z-index: 1;
+      margin-bottom: 0;
+      transition: transform 0.2s ease;
+      touch-action: pan-y;
+      will-change: transform;
+    }
     .empty { color: var(--muted); text-align: center; padding: 20px 0; }
     .message { border-radius: 12px; padding: 12px; margin-bottom: 12px; font-size: 14px; }
     .message.info { background: #e2e8f0; color: #0f172a; }
@@ -502,6 +528,62 @@
       });
     }
 
+    function bindSwipeMarkCards(root) {
+      const cards = root.querySelectorAll(".swipe-mark");
+      cards.forEach(card => {
+        const content = card.querySelector(".swipe-content");
+        if (!content) return;
+
+        let startX = 0;
+        let currentX = 0;
+        let dragging = false;
+        let openAtStart = false;
+
+        const applyOffset = offset => {
+          const clamped = Math.max(0, Math.min(SWIPE_DELETE_WIDTH, offset));
+          content.style.transform = `translateX(${clamped}px)`;
+        };
+
+        card.addEventListener("touchstart", event => {
+          if (event.touches.length !== 1) return;
+          startX = event.touches[0].clientX;
+          currentX = startX;
+          dragging = false;
+          openAtStart = card.dataset.open === "true";
+        }, { passive: true });
+
+        card.addEventListener("touchmove", event => {
+          if (event.touches.length !== 1) return;
+          currentX = event.touches[0].clientX;
+          const deltaX = currentX - startX;
+          if (!dragging && Math.abs(deltaX) < 10) return;
+          dragging = true;
+          const baseOffset = openAtStart ? SWIPE_DELETE_WIDTH : 0;
+          applyOffset(baseOffset + deltaX);
+        }, { passive: true });
+
+        card.addEventListener("touchend", () => {
+          if (!dragging) return;
+          const deltaX = currentX - startX;
+          const shouldOpen = openAtStart ? deltaX < 40 : deltaX > 40;
+          if (shouldOpen) {
+            card.dataset.open = "true";
+            applyOffset(SWIPE_DELETE_WIDTH);
+          } else {
+            card.dataset.open = "false";
+            applyOffset(0);
+          }
+        });
+
+        card.addEventListener("click", event => {
+          if (card.dataset.open === "true" && !event.target.closest(".mark-action")) {
+            card.dataset.open = "false";
+            applyOffset(0);
+          }
+        });
+      });
+    }
+
     function renderListScreen() {
       const filteredItems = sortedItems(state.items);
 
@@ -677,19 +759,27 @@
           if (group.length === 0) return;
           html += `<div style="margin-top:12px; font-weight:700;">${escapeHtml(location)}</div>`;
           html += group.map(item => `
-            <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; border:1px solid var(--border); border-radius:12px; padding:12px; margin-bottom:8px;">
-              <div>
-                <div style="font-weight:700;">${escapeHtml(item.name)}</div>
-                <div class="small">${escapeHtml(item.location)}</div>
-                ${item.egg_count !== null && item.egg_count !== undefined ? `<div class="small">${escapeHtml(quantityText(item))}</div>` : ""}
+            <div class="swipe-mark" data-id="${escapeHtml(item.id)}" data-open="false">
+              <button class="mark-action" data-action="shopping-status" data-id="${escapeHtml(item.id)}" data-status="ある">ある</button>
+              <div class="swipe-content" style="display:flex; justify-content:space-between; align-items:center; gap:12px; border:1px solid var(--border); border-radius:12px; padding:12px; background:var(--card);">
+                <div>
+                  <div style="font-weight:700;">${escapeHtml(item.name)}</div>
+                  <div class="small">${escapeHtml(item.location)}</div>
+                  ${item.egg_count !== null && item.egg_count !== undefined ? `<div class="small">${escapeHtml(quantityText(item))}</div>` : ""}
+                </div>
+                <div class="badge status-${escapeHtml(item.status)}">${escapeHtml(item.status)}</div>
               </div>
-              <div class="badge status-${escapeHtml(item.status)}">${escapeHtml(item.status)}</div>
             </div>
           `).join("");
         });
       }
       html += `</div>`;
-      document.getElementById("screen-shopping").innerHTML = html;
+      const root = document.getElementById("screen-shopping");
+      root.innerHTML = html;
+      bindSwipeMarkCards(root);
+      root.querySelectorAll("button[data-action='shopping-status']").forEach(btn => {
+        btn.addEventListener("click", () => updateStatus(btn.dataset.id, btn.dataset.status));
+      });
     }
 
     function ensureScanScreenMarkup() {
