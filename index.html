@@ -194,18 +194,29 @@
       font-weight: 800;
       text-align: center;
     }
+    .list-header-card {
+      position: sticky;
+      top: 8px;
+      z-index: 20;
+      padding: 10px 12px;
+      background: rgba(248, 250, 252, 0.94);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    }
     .list-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 12px;
-      flex-wrap: wrap;
+      display: block;
     }
     .location-jump-list {
       display: flex;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
       gap: 8px;
-      justify-content: flex-end;
+      overflow-x: auto;
+      overscroll-behavior-x: contain;
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .location-jump-list::-webkit-scrollbar {
+      display: none;
     }
     .location-jump {
       padding: 8px 12px;
@@ -240,13 +251,6 @@
       #screen-list .item-actions button {
         padding: 10px 8px;
         font-size: 15px;
-      }
-      .list-header {
-        align-items: stretch;
-      }
-      .location-jump-list {
-        width: 100%;
-        justify-content: flex-start;
       }
     }
     @media (orientation: landscape) and (min-width: 900px) {
@@ -649,15 +653,7 @@
       const visibleLocations = [...orderedLocations, ...extraLocations];
 
       let html = `
-        <div class="card full-span">
-          <div class="list-header">
-            <div>
-              <div style="font-weight:700; margin-bottom:12px;">在庫一覧</div>
-              <div class="small">保管場所ごとに表示</div>
-            </div>
-            ${visibleLocations.length ? `<div class="location-jump-list">${visibleLocations.map(location => `<button class="location-jump" data-action="jump-location" data-target="${escapeHtml(locationAnchorId(location))}">${escapeHtml(location)}</button>`).join("")}</div>` : ""}
-          </div>
-        </div>
+        <div class="card full-span list-header-card"><div class="list-header">${visibleLocations.length ? `<div class="location-jump-list">${visibleLocations.map(location => `<button class="location-jump" data-action="jump-location" data-target="${escapeHtml(locationAnchorId(location))}">${escapeHtml(location)}</button>`).join("")}</div>` : ""}</div></div>
       `;
       if (filteredItems.length === 0) {
         html += `<div class="card full-span"><div class="empty">該当データなし</div></div>`;
