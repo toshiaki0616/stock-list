@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>&#36023;&#12356;&#29289;&#12522;&#12473;&#12488;</title>
+  <title>買い物リスト</title>
   <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-32.png" />
   <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-180.png" />
   <link rel="manifest" href="manifest.json" />
@@ -37,9 +37,9 @@
     button:disabled { opacity: 0.55; cursor: default; }
     .hidden { display: none; }
     .badge { display: inline-block; font-size: 12px; font-weight: 700; padding: 6px 10px; border-radius: 999px; }
-    .status-縺ゅｋ { background: var(--success); }
-    .status-蟆代↑縺・{ background: var(--warn); }
-    .status-辟｡縺・{ background: var(--danger); }
+    .status-ある { background: var(--success); }
+    .status-少ない { background: var(--warn); }
+    .status-無い { background: var(--danger); }
     .small { font-size: 12px; color: var(--muted); margin-top: 4px; }
     .item-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
     .toggle-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
@@ -300,10 +300,10 @@
 
   <div class="nav">
     <div class="nav-inner">
-      <button id="nav-list">荳隕ｧ</button>
-      <button id="nav-edit">逋ｻ骭ｲ</button>
-      <button id="nav-shopping">雋ｷ縺・黄</button>
-      <button id="nav-scan">繧ｹ繧ｭ繝｣繝ｳ</button>
+      <button id="nav-list">一覧</button>
+      <button id="nav-edit">登録</button>
+      <button id="nav-shopping">買い物</button>
+      <button id="nav-scan">スキャン</button>
     </div>
   </div>
 
@@ -315,8 +315,8 @@
     const SUPABASE_URL = "https://dvrdufryalhaivgzveur.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR2cmR1ZnJ5YWxoYWl2Z3p2ZXVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2Mzk0OTQsImV4cCI6MjA5MTIxNTQ5NH0.VUCrOuI803r4TRXMtGYF8ST1YKoCUKQuuvL239zunTQ";
     const TABLE_NAME = "foods";
-    const LOCATIONS = ["蜀ｷ阡ｵ蠎ｫ", "蜀ｷ蜃榊ｺｫ", "繝√Η繝ｼ繝・, "繧､繧ｱ繧｢縺ｮ譽・, "IH縺ｮ譽・, "縺昴・莉・];
-    const STATUSES = ["縺ゅｋ", "蟆代↑縺・, "辟｡縺・];
+    const LOCATIONS = ["冷蔵庫", "冷凍庫", "チューブ", "イケアの棚", "IHの棚", "その他"];
+    const STATUSES = ["ある", "少ない", "無い"];
     const SCAN_COOLDOWN_MS = 2500;
     const DELETE_SWIPE_WIDTH = 56;
     const MARK_SWIPE_WIDTH = 96;
@@ -337,7 +337,7 @@
       editReturnScreen: "edit",
       scanMessage: "",
       editingId: "",
-      selectedStatus: "縺ゅｋ",
+      selectedStatus: "ある",
       lastScanned: { code: "", at: 0 },
       loading: false,
       cameraError: "",
@@ -366,8 +366,8 @@
     }
 
     function quantityText(item) {
-      if (item.egg_count === null || item.egg_count === undefined) return "蛟区焚譛ｪ險ｭ螳・;
-      return `${item.egg_count}蛟義;
+      if (item.egg_count === null || item.egg_count === undefined) return "個数未設定";
+      return `${item.egg_count}個`;
     }
 
     function normalizeBarcode(value) {
@@ -425,7 +425,7 @@
         return;
       }
       root.classList.remove("hidden");
-      root.innerHTML = "Supabase謗･邯壼燕縲・OUR_SUPABASE_URL 縺ｨ YOUR_SUPABASE_ANON_KEY 繧堤ｽｮ縺肴鋤縺医ｋ縲・;
+      root.innerHTML = "Supabase接続前。YOUR_SUPABASE_URL と YOUR_SUPABASE_ANON_KEY を置き換える。";
     }
 
     function setActiveNav() {
@@ -455,11 +455,11 @@
 
     function formatCameraError(error) {
       const name = error?.name || error?.constructor?.name || "";
-      if (name === "NotAllowedError") return "繧ｫ繝｡繝ｩ讓ｩ髯舌′譛ｪ險ｱ蜿ｯ縲・hrome縺ｮ讓ｩ髯占ｨｭ螳壹ｒ遒ｺ隱阪＠縺ｦ縺上□縺輔＞縲・;
-      if (name === "NotReadableError") return "繧ｫ繝｡繝ｩ縺御ｻ悶い繝励Μ縺ｫ菴ｿ逕ｨ縺輔ｌ縺ｦ縺・∪縺吶ゅ＞縺｣縺溘ｓ髢峨§縺ｦ蜀崎ｩｦ陦後＠縺ｦ縺上□縺輔＞縲・;
-      if (name === "OverconstrainedError") return "縺薙・遶ｯ譛ｫ縺ｧ縺ｯ謖・ｮ壹＠縺溘き繝｡繝ｩ譚｡莉ｶ繧呈ｺ縺溘○縺ｾ縺帙ｓ縺ｧ縺励◆縲・;
-      if (name === "NotFoundError") return "蛻ｩ逕ｨ縺ｧ縺阪ｋ繧ｫ繝｡繝ｩ縺瑚ｦ九▽縺九ｊ縺ｾ縺帙ｓ縺ｧ縺励◆縲・;
-      return error?.message || "繧ｫ繝｡繝ｩ繧定ｵｷ蜍輔〒縺阪∪縺帙ｓ縺ｧ縺励◆縲・;
+      if (name === "NotAllowedError") return "カメラ権限が未許可。Chromeの権限設定を確認してください。";
+      if (name === "NotReadableError") return "カメラが他アプリに使用されています。いったん閉じて再試行してください。";
+      if (name === "OverconstrainedError") return "この端末では指定したカメラ条件を満たせませんでした。";
+      if (name === "NotFoundError") return "利用できるカメラが見つかりませんでした。";
+      return error?.message || "カメラを起動できませんでした。";
     }
 
     function stopCamera() {
@@ -509,9 +509,9 @@
     function openNewForm(prefillBarcode = "") {
       state.editingId = "";
       state.editReturnScreen = "edit";
-      state.selectedStatus = "縺ゅｋ";
+      state.selectedStatus = "ある";
       showScreen("edit");
-      renderEditScreen({ name: "", barcode: prefillBarcode, location: "蜀ｷ阡ｵ蠎ｫ" });
+      renderEditScreen({ name: "", barcode: prefillBarcode, location: "冷蔵庫" });
     }
 
     function render() {
@@ -660,16 +660,16 @@
         <div class="card full-span list-header-card"><div class="list-header">${visibleLocations.length ? `<div class="location-jump-list">${visibleLocations.map(location => `<button class="location-jump" data-action="jump-location" data-target="${escapeHtml(locationAnchorId(location))}">${escapeHtml(location)}</button>`).join("")}</div>` : ""}</div></div>
       `;
       if (filteredItems.length === 0) {
-        html += `<div class="card full-span"><div class="empty">隧ｲ蠖薙ョ繝ｼ繧ｿ縺ｪ縺・/div></div>`;
+        html += `<div class="card full-span"><div class="empty">該当データなし</div></div>`;
       } else {
         visibleLocations.forEach(location => {
           const group = sortedItems(grouped.get(location) || []);
           if (group.length === 0) return;
 
-          html += `<div id="${escapeHtml(locationAnchorId(location))}" class="full-span section-title"><span class="section-title-name">${escapeHtml(location)}</span><span class="section-title-count">${group.length}莉ｶ</span></div>`;
+          html += `<div id="${escapeHtml(locationAnchorId(location))}" class="full-span section-title"><span class="section-title-name">${escapeHtml(location)}</span><span class="section-title-count">${group.length}件</span></div>`;
           html += group.map(item => `
             <div class="swipe-delete" data-id="${escapeHtml(item.id)}" data-open="false">
-              <button class="delete-action" data-action="delete" data-id="${escapeHtml(item.id)}">蜑企勁</button>
+              <button class="delete-action" data-action="delete" data-id="${escapeHtml(item.id)}">削除</button>
               <div class="card swipe-content">
                 <div class="row-between">
                   <div>
@@ -678,12 +678,12 @@
                   </div>
                   <div class="badge status-${escapeHtml(item.status)}">${escapeHtml(item.status)}</div>
                 </div>
-                <div class="small">繝舌・繧ｳ繝ｼ繝・ ${escapeHtml(item.barcode || "譛ｪ逋ｻ骭ｲ")}</div>
-                <div class="small">譛邨ょ・繧ｹ繧ｭ繝｣繝ｳ: ${escapeHtml(formatDate(item.registered_at || item.registeredAt))}</div>
+                <div class="small">バーコード: ${escapeHtml(item.barcode || "未登録")}</div>
+                <div class="small">最終再スキャン: ${escapeHtml(formatDate(item.registered_at || item.registeredAt))}</div>
                 ${item.egg_count !== null && item.egg_count !== undefined ? `<div class="small">${escapeHtml(quantityText(item))}</div>` : ""}
                 <div class="item-actions">
                   ${STATUSES.map(status => `<button class="${item.status === status ? "primary" : ""}" data-action="status" data-id="${escapeHtml(item.id)}" data-status="${escapeHtml(status)}">${status}</button>`).join("")}
-                  <button data-action="edit" data-id="${escapeHtml(item.id)}">邱ｨ髮・/button>
+                  <button data-action="edit" data-id="${escapeHtml(item.id)}">編集</button>
                 </div>
               </div>
             </div>
@@ -711,7 +711,7 @@
       const values = {
         name: prefill?.name ?? item?.name ?? "",
         barcode: prefill?.barcode ?? item?.barcode ?? "",
-        location: prefill?.location ?? item?.location ?? "蜀ｷ阡ｵ蠎ｫ",
+        location: prefill?.location ?? item?.location ?? "冷蔵庫",
         egg_count: prefill?.egg_count ?? item?.egg_count ?? 0,
         quantity_enabled: prefill?.quantity_enabled ?? (item?.egg_count !== null && item?.egg_count !== undefined) ?? false,
       };
@@ -719,34 +719,34 @@
 
       const html = `
         <div class="card">
-          <div style="font-weight:700; margin-bottom:12px;">譁ｰ隕冗匳骭ｲ繝ｻ邱ｨ髮・/div>
-          <label>蝠・刀蜷・/label>
+          <div style="font-weight:700; margin-bottom:12px;">新規登録・編集</div>
+          <label>商品名</label>
           <input id="form-name" value="${escapeHtml(values.name)}" />
-          <label>繝舌・繧ｳ繝ｼ繝・/label>
+          <label>バーコード</label>
           <input id="form-barcode" value="${escapeHtml(values.barcode)}" />
-          <label>菫晉ｮ｡蝣ｴ謇</label>
+          <label>保管場所</label>
           <select id="form-location">
             ${LOCATIONS.map(loc => `<option value="${escapeHtml(loc)}"${values.location === loc ? " selected" : ""}>${escapeHtml(loc)}</option>`).join("")}
           </select>
-          <label>謨ｰ驥冗ｮ｡逅・/label>
+          <label>数量管理</label>
           <div class="row" style="margin-bottom:12px;">
-            <button id="quantityToggleButton" type="button" class="${values.quantity_enabled ? "primary" : ""}" style="flex:1;">${values.quantity_enabled ? "謨ｰ驥上≠繧・ : "謨ｰ驥上↑縺・}</button>
+            <button id="quantityToggleButton" type="button" class="${values.quantity_enabled ? "primary" : ""}" style="flex:1;">${values.quantity_enabled ? "数量あり" : "数量なし"}</button>
           </div>
-          ${values.quantity_enabled ? `<label>謨ｰ驥擾ｼ・縲・0・・/label>
+          ${values.quantity_enabled ? `<label>数量（0〜10）</label>
           <div id="form-quantity-toggle" class="toggle-grid" style="margin-bottom:12px;">
             ${Array.from({ length: 11 }, (_, i) => {
               const value = i;
               return `<button type="button" data-action="pick-quantity" data-value="${value}" class="${Number(values.egg_count) === value ? "primary" : ""}">${value}</button>`;
             }).join("")}
           </div>` : ""}
-          <label>迥ｶ諷・/label>
+          <label>状態</label>
           <div class="row" style="margin-bottom:12px;">
             ${STATUSES.map(status => `<button data-action="pick-status" data-status="${escapeHtml(status)}" class="${state.selectedStatus === status ? "primary" : ""}" style="flex:1;">${status}</button>`).join("")}
           </div>
           <div class="row">
-            <button id="saveFormButton" class="primary" style="flex:1;">菫晏ｭ・/button>
-            <button id="clearFormButton" style="flex:1;">繧ｯ繝ｪ繧｢</button>
-            <button id="backToListButton" style="flex:1;">謌ｻ繧・/button>
+            <button id="saveFormButton" class="primary" style="flex:1;">保存</button>
+            <button id="clearFormButton" style="flex:1;">クリア</button>
+            <button id="backToListButton" style="flex:1;">戻る</button>
           </div>
         </div>
       `;
@@ -801,16 +801,16 @@
     }
 
     function renderShoppingScreen() {
-      const shoppingItems = sortedItems(state.items.filter(item => item.status === "蟆代↑縺・ || item.status === "辟｡縺・));
+      const shoppingItems = sortedItems(state.items.filter(item => item.status === "少ない" || item.status === "無い"));
       const grouped = {};
       shoppingItems.forEach(item => {
         if (!grouped[item.location]) grouped[item.location] = [];
         grouped[item.location].push(item);
       });
 
-      let html = `<div class="card"><div style="font-weight:700; margin-bottom:12px;">雋ｷ縺・黄蛟呵｣・/div>`;
+      let html = `<div class="card"><div style="font-weight:700; margin-bottom:12px;">買い物候補</div>`;
       if (shoppingItems.length === 0) {
-        html += `<div class="empty">雋ｷ縺・黄蛟呵｣懊↑縺・/div>`;
+        html += `<div class="empty">買い物候補なし</div>`;
       } else {
         LOCATIONS.forEach(location => {
           const group = grouped[location] || [];
@@ -818,7 +818,7 @@
           html += `<div style="margin-top:12px; font-weight:700;">${escapeHtml(location)}</div>`;
           html += group.map(item => `
             <div class="swipe-mark" data-id="${escapeHtml(item.id)}" data-open="false">
-              <button class="mark-action" data-action="shopping-status" data-id="${escapeHtml(item.id)}" data-status="縺ゅｋ">縺ゅｋ</button>
+              <button class="mark-action" data-action="shopping-status" data-id="${escapeHtml(item.id)}" data-status="ある">ある</button>
               <div class="swipe-content" style="display:flex; justify-content:space-between; align-items:center; gap:12px; border:1px solid var(--border); border-radius:12px; padding:12px; background:var(--card);">
                 <div>
                   <div style="font-weight:700;">${escapeHtml(item.name)}</div>
@@ -846,21 +846,21 @@
 
       root.innerHTML = `
         <div class="card">
-          <div style="font-weight:700; margin-bottom:12px;">繧ｹ繧ｭ繝｣繝ｳ</div>
+          <div style="font-weight:700; margin-bottom:12px;">スキャン</div>
           <div class="video-wrap">
             <video id="video" playsinline muted style="display:none;"></video>
-            <div id="scanPlaceholder" class="video-placeholder">繧ｫ繝｡繝ｩ蛛懈ｭ｢荳ｭ</div>
+            <div id="scanPlaceholder" class="video-placeholder">カメラ停止中</div>
             <div class="scan-frame"></div>
           </div>
           <div class="row" style="margin-bottom:12px;">
-            <button id="startCameraButton" class="primary" style="flex:1;">繧ｫ繝｡繝ｩ髢句ｧ・/button>
-            <button id="stopCameraButton" style="flex:1;">蛛懈ｭ｢</button>
+            <button id="startCameraButton" class="primary" style="flex:1;">カメラ開始</button>
+            <button id="stopCameraButton" style="flex:1;">停止</button>
           </div>
           <div id="scanErrorBox" class="message error hidden"></div>
           <div id="scanMessageBox" class="message info hidden"></div>
           <div id="scanHint" class="small" style="margin-bottom:8px;"></div>
-          <input id="scanInput" inputmode="numeric" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="繝舌・繧ｳ繝ｼ繝峨ｒ蜈･蜉・ />
-          <button id="manualScanButton" class="primary" style="width:100%; margin-top:8px;">謇句虚縺ｧ隱ｭ縺ｿ蜿悶ｊ螳溯｡・/button>
+          <input id="scanInput" inputmode="numeric" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="バーコードを入力" />
+          <button id="manualScanButton" class="primary" style="width:100%; margin-top:8px;">手動で読み取り実行</button>
         </div>
       `;
 
@@ -884,7 +884,7 @@
       stopButton.disabled = !state.cameraActive && !state.cameraStarting;
       placeholder.style.display = state.cameraActive ? "none" : "";
       video.style.display = state.cameraActive ? "" : "none";
-      placeholder.textContent = state.cameraStarting ? "繧ｫ繝｡繝ｩ襍ｷ蜍穂ｸｭ..." : "繧ｫ繝｡繝ｩ蛛懈ｭ｢荳ｭ";
+      placeholder.textContent = state.cameraStarting ? "カメラ起動中..." : "カメラ停止中";
 
       errorBox.textContent = state.cameraError;
       errorBox.classList.toggle("hidden", !state.cameraError);
@@ -893,8 +893,8 @@
       messageBox.classList.toggle("hidden", !state.scanMessage);
 
       hint.textContent = state.cameraActive
-        ? "ZXing縺ｧ騾｣邯壹せ繧ｭ繝｣繝ｳ荳ｭ縲ゅヰ繝ｼ繧ｳ繝ｼ繝峨ｒ譫蜀・↓縺ｾ縺｣縺吶＄蜈･繧後ｋ"
-        : "BarcodeDetector萓晏ｭ倥ｒ螟悶＠縲〇Xing縺ｧ繧ｹ繧ｭ繝｣繝ｳ縺励∪縺吶ゅき繝｡繝ｩ縺御ｽｿ縺医↑縺・ｫｯ譛ｫ縺ｯ謇句虚蜈･蜉帙〒縺阪∪縺吶・;
+        ? "ZXingで連続スキャン中。バーコードを枠内にまっすぐ入れる"
+        : "BarcodeDetector依存を外し、ZXingでスキャンします。カメラが使えない端末は手動入力できます。";
 
       startButton.onclick = startCamera;
       stopButton.onclick = () => {
@@ -913,7 +913,7 @@
     async function fetchItems() {
       if (!supabase) return;
       state.loading = true;
-      setMessage("info", "隱ｭ縺ｿ霎ｼ縺ｿ荳ｭ...");
+      setMessage("info", "読み込み中...");
       const { data, error } = await supabase
         .from(TABLE_NAME)
         .select("id, name, barcode, location, status, egg_count, registered_at, created_at, updated_at")
@@ -924,7 +924,7 @@
         return;
       }
       state.items = data || [];
-      setMessage("info", "隱ｭ縺ｿ霎ｼ縺ｿ螳御ｺ・);
+      setMessage("info", "読み込み完了");
       setTimeout(() => setMessage("", ""), 1200);
       render();
     }
@@ -933,13 +933,13 @@
       const wasEditing = Boolean(state.editingId);
       const name = (document.getElementById("form-name")?.value || "").trim();
       const barcode = normalizeBarcode(document.getElementById("form-barcode")?.value || "");
-      const location = document.getElementById("form-location")?.value || "蜀ｷ阡ｵ蠎ｫ";
+      const location = document.getElementById("form-location")?.value || "冷蔵庫";
       const status = state.selectedStatus;
       const quantityEnabled = document.getElementById("quantityToggleButton")?.classList.contains("primary") ?? false;
       const quantityValue = document.querySelector("button[data-action='pick-quantity'].primary")?.dataset.value;
       const eggCount = quantityEnabled ? Number(quantityValue ?? 0) : null;
       if (!name) {
-        alert("蝠・刀蜷阪ｒ蜈･繧後※縺上□縺輔＞");
+        alert("商品名を入れてください");
         return;
       }
       if (!supabase) {
@@ -951,16 +951,16 @@
       const duplicate = findDuplicateItem({ name, barcode, location, excludeId: targetId });
       if (duplicate?.reason === "barcode") {
         const shouldUpdate = window.confirm(
-          `蜷後§繝舌・繧ｳ繝ｼ繝峨・縲・{duplicate.item.name}縲阪′縺ゅｊ縺ｾ縺吶・nOK: 譌｢蟄倥ョ繝ｼ繧ｿ繧呈峩譁ｰ\n繧ｭ繝｣繝ｳ繧ｻ繝ｫ: 菫晏ｭ倥＠縺ｪ縺Я
+          `同じバーコードの「${duplicate.item.name}」があります。\nOK: 既存データを更新\nキャンセル: 保存しない`
         );
         if (!shouldUpdate) {
-          setMessage("info", "菫晏ｭ倥ｒ荳ｭ豁｢縺励∪縺励◆");
+          setMessage("info", "保存を中止しました");
           return;
         }
         targetId = duplicate.item.id;
       } else if (duplicate?.reason === "name-location") {
         const shouldUpdate = window.confirm(
-          `縲・{duplicate.item.name}縲搾ｼ・{duplicate.item.location}・峨′譌｢縺ｫ縺ゅｊ縺ｾ縺吶・nOK: 譌｢蟄倥ョ繝ｼ繧ｿ繧呈峩譁ｰ\n繧ｭ繝｣繝ｳ繧ｻ繝ｫ: 譁ｰ隕丈ｽ懈・`
+          `「${duplicate.item.name}」（${duplicate.item.location}）が既にあります。\nOK: 既存データを更新\nキャンセル: 新規作成`
         );
         if (shouldUpdate) targetId = duplicate.item.id;
       }
@@ -988,14 +988,14 @@
       }
 
       state.editingId = "";
-      state.selectedStatus = "縺ゅｋ";
+      state.selectedStatus = "ある";
       await fetchItems();
 
       if (wasEditing || Boolean(targetId)) {
         const returnScreen = wasEditing ? state.editReturnScreen : "edit";
         showScreen(returnScreen);
         if (returnScreen !== "edit") {
-          setMessage("info", "譖ｴ譁ｰ縺励∪縺励◆");
+          setMessage("info", "更新しました");
           return;
         }
         renderEditScreen({
@@ -1005,13 +1005,13 @@
           egg_count: quantityEnabled ? eggCount : 0,
           quantity_enabled: quantityEnabled,
         });
-        setMessage("info", "譖ｴ譁ｰ縺励∪縺励◆");
+        setMessage("info", "更新しました");
         return;
       }
 
       showScreen("edit");
-      renderEditScreen({ name: "", barcode: "", location: "蜀ｷ阡ｵ蠎ｫ", egg_count: 0, quantity_enabled: false });
-      setMessage("info", "菫晏ｭ倥＠縺ｾ縺励◆縲らｶ壹￠縺ｦ逋ｻ骭ｲ縺ｧ縺阪∪縺・);
+      renderEditScreen({ name: "", barcode: "", location: "冷蔵庫", egg_count: 0, quantity_enabled: false });
+      setMessage("info", "保存しました。続けて登録できます");
     }
 
     function editItem(id) {
@@ -1043,16 +1043,16 @@
       const item = state.items.find(entry => String(entry.id) === String(id));
       if (!item) return;
 
-      const shouldDelete = window.confirm(`縲・{item.name}縲阪ｒ蜑企勁縺励∪縺吶°・歔);
+      const shouldDelete = window.confirm(`「${item.name}」を削除しますか？`);
       if (!shouldDelete) return;
 
       const { error } = await supabase.from(TABLE_NAME).delete().eq("id", id);
       if (error) {
-        setMessage("error", `蜑企勁螟ｱ謨・ ${error.message}`);
+        setMessage("error", `削除失敗: ${error.message}`);
         return;
       }
 
-      setMessage("info", `縲・{item.name}縲阪ｒ蜑企勁縺励∪縺励◆`);
+      setMessage("info", `「${item.name}」を削除しました`);
       await fetchItems();
     }
 
@@ -1071,17 +1071,17 @@
       const existing = state.items.find(item => item.barcode && normalizeBarcode(item.barcode) === barcode);
       if (existing) {
         const now = new Date().toISOString();
-        const { error } = await supabase.from(TABLE_NAME).update({ status: "縺ゅｋ", registered_at: now, updated_at: now }).eq("id", existing.id);
+        const { error } = await supabase.from(TABLE_NAME).update({ status: "ある", registered_at: now, updated_at: now }).eq("id", existing.id);
         if (error) {
-          setMessage("error", `蜀阪せ繧ｭ繝｣繝ｳ螟ｱ謨・ ${error.message}`);
+          setMessage("error", `再スキャン失敗: ${error.message}`);
           return;
         }
-        state.scanMessage = `蜀阪せ繧ｭ繝｣繝ｳ蜿肴丐: ${existing.name} 繧偵後≠繧九阪↓譖ｴ譁ｰ`;
+        state.scanMessage = `再スキャン反映: ${existing.name} を「ある」に更新`;
         await fetchItems();
         return;
       }
 
-      state.scanMessage = "譛ｪ逋ｻ骭ｲ繝舌・繧ｳ繝ｼ繝峨〒縺吶ょ膚蜩∝錐繧貞・繧後※菫晏ｭ倥＠縺ｦ縺上□縺輔＞縲・;
+      state.scanMessage = "未登録バーコードです。商品名を入れて保存してください。";
       openNewForm(barcode);
     }
 
@@ -1098,19 +1098,19 @@
       stopCamera();
       state.cameraError = "";
       state.cameraStarting = true;
-      state.scanMessage = "繧ｫ繝｡繝ｩ繧定ｵｷ蜍輔＠縺ｦ縺・∪縺・..";
+      state.scanMessage = "カメラを起動しています...";
       renderScanScreen();
 
       try {
         if (location.protocol === "file:") {
-          throw new Error("file:// 縺ｧ縺ｯ繧ｫ繝｡繝ｩ襍ｷ蜍穂ｸ榊庄縲Ｉttps 縺・localhost 縺ｧ髢九＞縺ｦ縺上□縺輔＞縲・);
+          throw new Error("file:// ではカメラ起動不可。https か localhost で開いてください。");
         }
         if (!navigator.mediaDevices?.getUserMedia) {
-          throw new Error("縺薙・繝悶Λ繧ｦ繧ｶ縺ｯ繧ｫ繝｡繝ｩAPI縺ｫ譛ｪ蟇ｾ蠢懊〒縺吶よ焔蜍輔せ繧ｭ繝｣繝ｳ繧剃ｽｿ縺｣縺ｦ縺上□縺輔＞縲・);
+          throw new Error("このブラウザはカメラAPIに未対応です。手動スキャンを使ってください。");
         }
 
         const video = document.getElementById("video");
-        if (!video) throw new Error("video隕∫ｴ縺ｮ蜿門ｾ励↓螟ｱ謨・);
+        if (!video) throw new Error("video要素の取得に失敗");
 
         const sessionId = state.scanSessionId + 1;
         state.scanSessionId = sessionId;
@@ -1135,7 +1135,7 @@
             state.scanBusy = true;
             processScannedBarcode(rawValue)
               .catch(scanError => {
-                setMessage("error", `繧ｹ繧ｭ繝｣繝ｳ蜃ｦ逅・､ｱ謨・ ${scanError.message}`);
+                setMessage("error", `スキャン処理失敗: ${scanError.message}`);
               })
               .finally(() => {
                 window.setTimeout(() => {
@@ -1160,7 +1160,7 @@
         state.cameraActive = true;
         state.cameraStarting = false;
         state.cameraError = "";
-        state.scanMessage = "ZXing縺ｧ繧ｹ繧ｭ繝｣繝ｳ荳ｭ縲ゅヰ繝ｼ繧ｳ繝ｼ繝峨ｒ譫蜀・↓蜈･繧後ｋ";
+        state.scanMessage = "ZXingでスキャン中。バーコードを枠内に入れる";
         video.play().catch(() => {});
         renderScanScreen();
       } catch (error) {
