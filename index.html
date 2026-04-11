@@ -181,7 +181,7 @@
       border: 1px solid #93c5fd;
       border-radius: 16px;
       box-shadow: 0 10px 24px rgba(59, 130, 246, 0.12);
-      scroll-margin-top: 18px;
+      scroll-margin-top: 72px;
     }
     .section-title-name {
       letter-spacing: 0.03em;
@@ -272,7 +272,8 @@
         gap: 12px;
         align-items: start;
       }
-      #screen-list > .card {
+      #screen-list > .card,
+      #screen-list > .swipe-delete {
         margin-bottom: 0;
       }
       #screen-list > .full-span {
@@ -659,6 +660,7 @@
       let html = `
         <div class="card full-span list-header-card"><div class="list-header">${visibleLocations.length ? `<div class="location-jump-list">${visibleLocations.map(location => `<button class="location-jump" data-action="jump-location" data-target="${escapeHtml(locationAnchorId(location))}">${escapeHtml(location)}</button>`).join("")}</div>` : ""}</div></div>
       `;
+
       if (filteredItems.length === 0) {
         html += `<div class="card full-span"><div class="empty">該当データなし</div></div>`;
       } else {
@@ -713,7 +715,7 @@
         barcode: prefill?.barcode ?? item?.barcode ?? "",
         location: prefill?.location ?? item?.location ?? "冷蔵庫",
         egg_count: prefill?.egg_count ?? item?.egg_count ?? 0,
-        quantity_enabled: prefill?.quantity_enabled ?? (item?.egg_count !== null && item?.egg_count !== undefined) ?? false,
+        quantity_enabled: prefill?.quantity_enabled ?? (item?.egg_count !== null && item?.egg_count !== undefined),
       };
       if (item) state.selectedStatus = item.status;
 
@@ -797,7 +799,7 @@
       });
       document.getElementById("saveFormButton")?.addEventListener("click", saveForm);
       document.getElementById("clearFormButton")?.addEventListener("click", () => openNewForm());
-      document.getElementById("backToListButton")?.addEventListener("click", () => showScreen("list"));
+      document.getElementById("backToListButton")?.addEventListener("click", () => showScreen(state.editReturnScreen || "list"));
     }
 
     function renderShoppingScreen() {
@@ -920,7 +922,7 @@
         .order("created_at", { ascending: true });
       state.loading = false;
       if (error) {
-        setMessage("error", `隱ｭ霎ｼ螟ｱ謨・ ${error.message}`);
+        setMessage("error", `読込失敗: ${error.message}`);
         return;
       }
       state.items = data || [];
@@ -943,7 +945,7 @@
         return;
       }
       if (!supabase) {
-        setMessage("error", "Supabase險ｭ螳壽悴螳御ｺ・);
+        setMessage("error", "Supabase設定未完了");
         return;
       }
 
@@ -983,7 +985,7 @@
       }
 
       if (error) {
-        setMessage("error", `菫晏ｭ伜､ｱ謨・ ${error.message}`);
+        setMessage("error", `保存失敗: ${error.message}`);
         return;
       }
 
@@ -1022,13 +1024,13 @@
 
     async function updateStatus(id, status) {
       if (!supabase) {
-        setMessage("error", "Supabase險ｭ螳壽悴螳御ｺ・);
+        setMessage("error", "Supabase設定未完了");
         return;
       }
       const now = new Date().toISOString();
       const { error } = await supabase.from(TABLE_NAME).update({ status, updated_at: now }).eq("id", id);
       if (error) {
-        setMessage("error", `譖ｴ譁ｰ螟ｱ謨・ ${error.message}`);
+        setMessage("error", `更新失敗: ${error.message}`);
         return;
       }
       await fetchItems();
@@ -1036,7 +1038,7 @@
 
     async function deleteItem(id) {
       if (!supabase) {
-        setMessage("error", "Supabase險ｭ螳壽悴螳御ｺ・);
+        setMessage("error", "Supabase設定未完了");
         return;
       }
 
@@ -1058,7 +1060,7 @@
 
     async function processScannedBarcode(rawBarcode) {
       if (!supabase) {
-        setMessage("error", "Supabase險ｭ螳壽悴螳御ｺ・);
+        setMessage("error", "Supabase設定未完了");
         return;
       }
 
@@ -1195,3 +1197,4 @@
   </script>
 </body>
 </html>
+
