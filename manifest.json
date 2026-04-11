@@ -1,0 +1,23 @@
+{
+  "name": "\u8cb7\u3044\u7269\u30ea\u30b9\u30c8",
+  "short_name": "\u8cb7\u3044\u7269",
+  "lang": "ja-JP",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#111827",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
