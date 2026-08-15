@@ -25,3 +25,9 @@
 4. LINE Developers ConsoleでWebhook URLを `https://stock-list-lemon.vercel.app/api/line/webhook` に設定します。公式アカウントへ携帯のLINEからメッセージを1通送ると、Vercelログに通知先ユーザーIDが記録されます。この値を `LINE_TO_USER_ID` に設定します。
 
 定期通知はVercel Cronで毎日23:00 UTC（日本時間の翌日8:00）に実行されます。
+## LINE通知の再設定
+
+- 毎朝8時（日本時間）に、状態が「少ない」または「無い」の商品をまとめてLINEへ送ります。
+- 商品の登録・更新・削除時もLINEへ通知します。
+- Vercelには `.env.example` にある環境変数をProduction環境へ設定します。値はGitHubに保存しません。
+- Supabaseでは `supabase_setup.sql` を実行後、`pg_net` を有効化し、Vaultに `stock_webhook_secret` を作成してから `supabase_stock_notification_setup.sql` を実行します。このVault値はVercelの `SUPABASE_WEBHOOK_SECRET` と一致させます。
