@@ -17,8 +17,17 @@ export default async function handler(request, response) {
     const item = record || oldRecord;
     if (!item?.name) return response.status(400).json({ error: 'Invalid webhook payload' });
 
-    const action = type === 'INSERT' ? '登録' : type === 'DELETE' ? '削除' : '更新';
-    const text = `在庫リストを${action}しました\n${item.name}（${item.location || '場所未設定'}）${item.status ? `：${item.status}` : ''}`;
+    const lowStockStatuses = new Set(['少ない', '無い']);
+    const isLowStock = lowStockStatuses.has(record?.status);
+    const statusChanged = type !== 'UPDATE' || record?.status !== oldRecord?.status;
+
+    // Keep immediate alerts meaningful: routine edits, removals, and restocking
+    // are covered by the daily summary instead of sending a LINE message each time.
+    if (!isLowStock || !statusChanged) {
+      return response.status(200).json({ ok: true, notified: false });
+    }
+
+    const text = `在庫が${record.status}です\n${item.name}（${item.location || '場所未設定'}）`;
     const lineResponse = await fetch(LINE_PUSH_URL, {
       method: 'POST',
       headers: {
@@ -32,7 +41,7 @@ export default async function handler(request, response) {
     });
     if (!lineResponse.ok) throw new Error(`LINE API error: ${lineResponse.status}`);
 
-    return response.status(200).json({ ok: true });
+    return response.status(200).json({ ok: true, notified: true });
   } catch (error) {
     console.error('Stock update notification failed', error);
     return response.status(500).json({ error: 'Stock update notification failed' });
