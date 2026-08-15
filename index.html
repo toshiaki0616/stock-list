@@ -319,6 +319,8 @@
     const LOCATIONS = ["冷蔵庫", "冷凍庫", "チューブ", "イケアの棚", "IHの棚", "その他"];
     const STATUSES = ["ある", "少ない", "無い"];
     const SCAN_COOLDOWN_MS = 2500;
+    const LOAD_RETRY_ATTEMPTS = 3;
+    const LOAD_RETRY_DELAY_MS = 700;
     const DELETE_SWIPE_WIDTH = 56;
     const MARK_SWIPE_WIDTH = 96;
     const ZXING_FORMATS = [
@@ -348,6 +350,10 @@
       codeReader: null,
       scanBusy: false,
       scanSessionId: 0,
+      retryAction: null,
+      registerUnknownBarcode: true,
+      listKeyword: "",
+      listStatusFilter: "すべて",
     };
 
     const configReady = !SUPABASE_URL.includes("YOUR_") && !SUPABASE_ANON_KEY.includes("YOUR_");
@@ -409,13 +415,57 @@
       return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
     }
 
-    function setMessage(type, text) {
+    function setMessage(type, text, retryAction = null) {
       const root = document.getElementById("globalMessage");
       if (!text) {
+        state.retryAction = null;
         root.innerHTML = "";
         return;
       }
-      root.innerHTML = `<div class="message ${type}">${escapeHtml(text)}</div>`;
+      state.retryAction = retryAction;
+      root.innerHTML = `
+        <div class="message ${type}">
+          <div>${escapeHtml(text)}</div>
+          ${retryAction ? '<button type="button" data-action="retry-load" style="margin-top:10px;">再読み込み</button>' : ""}
+        </div>
+      `;
+      root.querySelector("button[data-action='retry-load']")?.addEventListener("click", () => {
+        const action = state.retryAction;
+        state.retryAction = null;
+        action?.();
+      });
+    }
+
+    function wait(ms) {
+      return new Promise(resolve => window.setTimeout(resolve, ms));
+    }
+
+    function isNetworkError(error) {
+      const message = String(error?.message || error || "").toLowerCase();
+      return message.includes("failed to fetch") ||
+        message.includes("networkerror") ||
+        message.includes("network request failed") ||
+        message.includes("load failed");
+    }
+
+    async function loadItemsWithRetry() {
+      let lastResult = { data: null, error: new Error("読み込みに失敗しました") };
+      for (let attempt = 1; attempt <= LOAD_RETRY_ATTEMPTS; attempt += 1) {
+        try {
+          const result = await supabase
+            .from(TABLE_NAME)
+            .select("id, name, barcode, location, status, egg_count, registered_at, created_at, updated_at")
+            .order("created_at", { ascending: true });
+          lastResult = result;
+          if (!result.error || !isNetworkError(result.error) || attempt === LOAD_RETRY_ATTEMPTS) return result;
+        } catch (error) {
+          lastResult = { data: null, error };
+          if (!isNetworkError(error) || attempt === LOAD_RETRY_ATTEMPTS) return lastResult;
+        }
+        setMessage("info", `接続を再試行中… (${attempt + 1}/${LOAD_RETRY_ATTEMPTS})`);
+        await wait(LOAD_RETRY_DELAY_MS * attempt);
+      }
+      return lastResult;
     }
 
     function setConfigNotice() {
@@ -644,7 +694,13 @@
     }
 
     function renderListScreen() {
-      const filteredItems = sortedItems(state.items);
+      const keyword = normalizeName(state.listKeyword);
+      const filteredItems = sortedItems(state.items.filter(item => {
+        const matchesStatus = state.listStatusFilter === "すべて" || item.status === state.listStatusFilter;
+        const searchable = `${item.name || ""} ${item.barcode || ""} ${item.location || ""}`;
+        const matchesKeyword = !keyword || normalizeName(searchable).includes(keyword);
+        return matchesStatus && matchesKeyword;
+      }));
       const grouped = new Map();
       filteredItems.forEach(item => {
         if (!grouped.has(item.location)) grouped.set(item.location, []);
@@ -658,7 +714,19 @@
       const visibleLocations = [...orderedLocations, ...extraLocations];
 
       let html = `
-        <div class="card full-span list-header-card"><div class="list-header">${visibleLocations.length ? `<div class="location-jump-list">${visibleLocations.map(location => `<button class="location-jump" data-action="jump-location" data-target="${escapeHtml(locationAnchorId(location))}">${escapeHtml(location)}</button>`).join("")}</div>` : ""}</div></div>
+        <div class="card full-span list-header-card">
+          <div class="list-header">
+            <div class="row" style="flex-wrap:nowrap; margin-bottom:8px;">
+              <input id="listSearchInput" value="${escapeHtml(state.listKeyword)}" placeholder="商品名・バーコード・場所で検索" style="min-width:0; flex:1;" />
+              <button id="clearListSearchButton" type="button">クリア</button>
+            </div>
+            <div class="row" style="margin-bottom:8px;">
+              ${["すべて", ...STATUSES].map(status => `<button type="button" data-action="filter-status" data-status="${escapeHtml(status)}" class="${state.listStatusFilter === status ? "primary" : ""}">${escapeHtml(status)}</button>`).join("")}
+            </div>
+            <div class="small">${filteredItems.length}件を表示</div>
+            ${visibleLocations.length ? `<div class="location-jump-list" style="margin-top:8px;">${visibleLocations.map(location => `<button class="location-jump" data-action="jump-location" data-target="${escapeHtml(locationAnchorId(location))}">${escapeHtml(location)}</button>`).join("")}</div>` : ""}
+          </div>
+        </div>
       `;
 
       if (filteredItems.length === 0) {
@@ -681,7 +749,8 @@
                   <div class="badge status-${escapeHtml(item.status)}">${escapeHtml(item.status)}</div>
                 </div>
                 <div class="small">バーコード: ${escapeHtml(item.barcode || "未登録")}</div>
-                <div class="small">最終再スキャン: ${escapeHtml(formatDate(item.registered_at || item.registeredAt))}</div>
+                <div class="small">登録日: ${escapeHtml(formatDate(item.created_at || item.createdAt || item.registered_at || item.registeredAt))}</div>
+                <div class="small">最終更新: ${escapeHtml(formatDate(item.updated_at || item.updatedAt || item.created_at || item.createdAt))}</div>
                 ${item.egg_count !== null && item.egg_count !== undefined ? `<div class="small">${escapeHtml(quantityText(item))}</div>` : ""}
                 <div class="item-actions">
                   ${STATUSES.map(status => `<button class="${item.status === status ? "primary" : ""}" data-action="status" data-id="${escapeHtml(item.id)}" data-status="${escapeHtml(status)}">${status}</button>`).join("")}
@@ -698,6 +767,24 @@
       bindSwipeDeleteCards(root);
       root.querySelectorAll("button[data-action='status']").forEach(btn => btn.addEventListener("click", () => updateStatus(btn.dataset.id, btn.dataset.status)));
       root.querySelectorAll("button[data-action='edit']").forEach(btn => btn.addEventListener("click", () => editItem(btn.dataset.id)));
+      root.querySelectorAll("button[data-action='filter-status']").forEach(btn => btn.addEventListener("click", () => {
+        state.listStatusFilter = btn.dataset.status || "すべて";
+        renderListScreen();
+      }));
+      root.querySelector("#listSearchInput")?.addEventListener("change", event => {
+        state.listKeyword = event.target.value;
+        renderListScreen();
+      });
+      root.querySelector("#listSearchInput")?.addEventListener("keydown", event => {
+        if (event.key !== "Enter") return;
+        event.preventDefault();
+        state.listKeyword = event.target.value;
+        renderListScreen();
+      });
+      root.querySelector("#clearListSearchButton")?.addEventListener("click", () => {
+        state.listKeyword = "";
+        renderListScreen();
+      });
       root.querySelectorAll("button[data-action='jump-location']").forEach(btn => btn.addEventListener("click", () => {
         const target = document.getElementById(btn.dataset.target || "");
         target?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -858,6 +945,8 @@
             <button id="startCameraButton" class="primary" style="flex:1;">カメラ開始</button>
             <button id="stopCameraButton" style="flex:1;">停止</button>
           </div>
+          <label>未登録バーコードの扱い</label>
+          <button id="scanRegistrationModeButton" type="button" style="width:100%; margin-bottom:12px;"></button>
           <div id="scanErrorBox" class="message error hidden"></div>
           <div id="scanMessageBox" class="message info hidden"></div>
           <div id="scanHint" class="small" style="margin-bottom:8px;"></div>
@@ -881,6 +970,7 @@
       const hint = root.querySelector("#scanHint");
       const input = root.querySelector("#scanInput");
       const manualButton = root.querySelector("#manualScanButton");
+      const registrationModeButton = root.querySelector("#scanRegistrationModeButton");
 
       startButton.disabled = state.cameraActive || state.cameraStarting;
       stopButton.disabled = !state.cameraActive && !state.cameraStarting;
@@ -898,9 +988,18 @@
         ? "ZXingで連続スキャン中。バーコードを枠内にまっすぐ入れる"
         : "BarcodeDetector依存を外し、ZXingでスキャンします。カメラが使えない端末は手動入力できます。";
 
+      registrationModeButton.textContent = state.registerUnknownBarcode
+        ? "登録モード: オン（未登録なら登録画面を開く）"
+        : "登録モード: オフ（未登録なら登録しない）";
+      registrationModeButton.classList.toggle("primary", state.registerUnknownBarcode);
+
       startButton.onclick = startCamera;
       stopButton.onclick = () => {
         stopCamera();
+        renderScanScreen();
+      };
+      registrationModeButton.onclick = () => {
+        state.registerUnknownBarcode = !state.registerUnknownBarcode;
         renderScanScreen();
       };
       manualButton.onclick = manualScan;
@@ -914,15 +1013,16 @@
 
     async function fetchItems() {
       if (!supabase) return;
+      if (state.loading) return;
       state.loading = true;
       setMessage("info", "読み込み中...");
-      const { data, error } = await supabase
-        .from(TABLE_NAME)
-        .select("id, name, barcode, location, status, egg_count, registered_at, created_at, updated_at")
-        .order("created_at", { ascending: true });
+      const { data, error } = await loadItemsWithRetry();
       state.loading = false;
       if (error) {
-        setMessage("error", `読込失敗: ${error.message}`);
+        const message = isNetworkError(error)
+          ? "データベースに接続できませんでした。通信状況を確認して、再読み込みしてください。"
+          : `読込失敗: ${error.message}`;
+        setMessage("error", message, () => fetchItems());
         return;
       }
       state.items = data || [];
@@ -1083,8 +1183,14 @@
         return;
       }
 
-      state.scanMessage = "未登録バーコードです。商品名を入れて保存してください。";
-      openNewForm(barcode);
+      if (state.registerUnknownBarcode) {
+        state.scanMessage = "未登録バーコードです。商品名を入れて保存してください。";
+        openNewForm(barcode);
+        return;
+      }
+
+      state.scanMessage = "未登録バーコードです。登録モードがオフのため、登録は行いません。";
+      renderScanScreen();
     }
 
     async function manualScan() {
