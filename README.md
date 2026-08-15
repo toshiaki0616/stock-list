@@ -20,7 +20,8 @@
 毎朝8:00（日本時間）に「少ない」「無い」の商品をまとめて通知し、在庫データを更新した時にも通知できます。
 
 1. LINE公式アカウントとMessaging APIチャネルを作成し、通知先ユーザーを友だち追加します。
-2. VercelのProduction環境変数に、`.env.example` にある6項目を設定します。`SUPABASE_SERVICE_ROLE_KEY` とLINEのトークンはブラウザに公開しないでください。
+2. VercelのProduction環境変数に、`.env.example` にある7項目を設定します。`SUPABASE_SERVICE_ROLE_KEY` とLINEのトークンはブラウザに公開しないでください。
 3. Supabase Dashboardで `foods` テーブルのDatabase Webhookを作成します。対象イベントは `INSERT`、`UPDATE`、`DELETE`、送信先は `https://stock-list-lemon.vercel.app/api/supabase/stock-updated`、ヘッダーは `x-stock-webhook-secret: <SUPABASE_WEBHOOK_SECRET>` にします。
+4. LINE Developers ConsoleでWebhook URLを `https://stock-list-lemon.vercel.app/api/line/webhook` に設定します。公式アカウントへ携帯のLINEからメッセージを1通送ると、Vercelログに通知先ユーザーIDが記録されます。この値を `LINE_TO_USER_ID` に設定します。
 
 定期通知はVercel Cronで毎日23:00 UTC（日本時間の翌日8:00）に実行されます。
