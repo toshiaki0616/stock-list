@@ -6,6 +6,13 @@ function required(name) {
   return value;
 }
 
+function notificationRecipients() {
+  const raw = process.env.LINE_TO_USER_IDS || process.env.LINE_TO_USER_ID || '';
+  const recipients = [...new Set(raw.split(',').map(value => value.trim()).filter(Boolean))];
+  if (recipients.length === 0) throw new Error('LINE_TO_USER_IDS is not configured');
+  return recipients;
+}
+
 export default async function handler(request, response) {
   if (request.method !== 'POST') return response.status(405).json({ error: 'Method not allowed' });
   if (request.headers['x-stock-webhook-secret'] !== required('SUPABASE_WEBHOOK_SECRET')) {
@@ -28,18 +35,17 @@ export default async function handler(request, response) {
     }
 
     const text = `在庫が${record.status}です\n${item.name}（${item.location || '場所未設定'}）`;
-    const lineResponse = await fetch(LINE_PUSH_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${required('LINE_CHANNEL_ACCESS_TOKEN')}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        to: required('LINE_TO_USER_ID'),
-        messages: [{ type: 'text', text }],
-      }),
-    });
-    if (!lineResponse.ok) throw new Error(`LINE API error: ${lineResponse.status}`);
+    await Promise.all(notificationRecipients().map(async to => {
+      const lineResponse = await fetch(LINE_PUSH_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${required('LINE_CHANNEL_ACCESS_TOKEN')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ to, messages: [{ type: 'text', text }] }),
+      });
+      if (!lineResponse.ok) throw new Error(`LINE API error: ${lineResponse.status}`);
+    }));
 
     return response.status(200).json({ ok: true, notified: true });
   } catch (error) {

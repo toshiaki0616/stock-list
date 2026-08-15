@@ -6,19 +6,25 @@ function required(name) {
   return value;
 }
 
+function notificationRecipients() {
+  const raw = process.env.LINE_TO_USER_IDS || process.env.LINE_TO_USER_ID || '';
+  const recipients = [...new Set(raw.split(',').map(value => value.trim()).filter(Boolean))];
+  if (recipients.length === 0) throw new Error('LINE_TO_USER_IDS is not configured');
+  return recipients;
+}
+
 async function sendLineMessage(text) {
-  const response = await fetch(LINE_PUSH_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${required('LINE_CHANNEL_ACCESS_TOKEN')}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      to: required('LINE_TO_USER_ID'),
-      messages: [{ type: 'text', text }],
-    }),
-  });
-  if (!response.ok) throw new Error(`LINE API error: ${response.status}`);
+  await Promise.all(notificationRecipients().map(async to => {
+    const lineResponse = await fetch(LINE_PUSH_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${required('LINE_CHANNEL_ACCESS_TOKEN')}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ to, messages: [{ type: 'text', text }] }),
+    });
+    if (!lineResponse.ok) throw new Error(`LINE API error: ${lineResponse.status}`);
+  }));
 }
 
 function buildSummary(items) {
