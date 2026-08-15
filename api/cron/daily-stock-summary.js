@@ -49,7 +49,6 @@ export default async function handler(request, response) {
     const stockResponse = await fetch(url, {
       headers: {
         apikey: required('SUPABASE_SERVICE_ROLE_KEY'),
-        Authorization: `Bearer ${required('SUPABASE_SERVICE_ROLE_KEY')}`,
       },
     });
     if (!stockResponse.ok) throw new Error(`Supabase API error: ${stockResponse.status}`);

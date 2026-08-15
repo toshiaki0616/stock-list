@@ -1,16 +1,7 @@
-const LINE_PUSH_URL = 'https://api.line.me/v2/bot/message/push';
-
 function required(name) {
   const value = process.env[name];
   if (!value) throw new Error(`${name} is not configured`);
   return value;
-}
-
-function notificationRecipients() {
-  const raw = process.env.LINE_TO_USER_IDS || process.env.LINE_TO_USER_ID || '';
-  const recipients = [...new Set(raw.split(',').map(value => value.trim()).filter(Boolean))];
-  if (recipients.length === 0) throw new Error('LINE_TO_USER_IDS is not configured');
-  return recipients;
 }
 
 export default async function handler(request, response) {
@@ -24,30 +15,25 @@ export default async function handler(request, response) {
     const item = record || oldRecord;
     if (!item?.name) return response.status(400).json({ error: 'Invalid webhook payload' });
 
-    const lowStockStatuses = new Set(['少ない', '無い']);
-    const isLowStock = lowStockStatuses.has(record?.status);
-    const statusChanged = type !== 'UPDATE' || record?.status !== oldRecord?.status;
+    const action = type === 'INSERT' ? '登録' : type === 'DELETE' ? '削除' : '更新';
+    const queueUrl = new URL('/rest/v1/stock_notification_queue', required('SUPABASE_URL'));
+    const queueResponse = await fetch(queueUrl, {
+      method: 'POST',
+      headers: {
+        apikey: required('SUPABASE_SERVICE_ROLE_KEY'),
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({
+        event_type: action,
+        item_name: item.name,
+        item_location: item.location || '場所未設定',
+        item_status: item.status || null,
+      }),
+    });
+    if (!queueResponse.ok) throw new Error(`Supabase queue error: ${queueResponse.status}`);
 
-    // Keep immediate alerts meaningful: routine edits, removals, and restocking
-    // are covered by the daily summary instead of sending a LINE message each time.
-    if (!isLowStock || !statusChanged) {
-      return response.status(200).json({ ok: true, notified: false });
-    }
-
-    const text = `在庫が${record.status}です\n${item.name}（${item.location || '場所未設定'}）`;
-    await Promise.all(notificationRecipients().map(async to => {
-      const lineResponse = await fetch(LINE_PUSH_URL, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${required('LINE_CHANNEL_ACCESS_TOKEN')}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ to, messages: [{ type: 'text', text }] }),
-      });
-      if (!lineResponse.ok) throw new Error(`LINE API error: ${lineResponse.status}`);
-    }));
-
-    return response.status(200).json({ ok: true, notified: true });
+    return response.status(200).json({ ok: true, queued: true });
   } catch (error) {
     console.error('Stock update notification failed', error);
     return response.status(500).json({ error: 'Stock update notification failed' });

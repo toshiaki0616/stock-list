@@ -28,7 +28,8 @@
 ## LINE通知の再設定
 
 - 毎朝8時（日本時間）に、状態が「少ない」または「無い」の商品をまとめてLINEへ送ります。
-- 状態が「少ない」または「無い」へ変わったときだけ、すぐにLINEへ通知します。
+- 商品の登録・更新・削除は10分間ためてから、LINEへ1通にまとめて通知します。
 - 家族にも送る場合は、`LINE_TO_USER_IDS` にLINEユーザーIDをカンマ区切りで設定します。`LINE_TO_USER_ID` は1人だけの従来設定として引き続き使えます。
 - Vercelには `.env.example` にある環境変数をProduction環境へ設定します。値はGitHubに保存しません。
 - Supabaseでは `supabase_setup.sql` を実行後、`pg_net` を有効化し、Vaultに `stock_webhook_secret` を作成してから `supabase_stock_notification_setup.sql` を実行します。このVault値はVercelの `SUPABASE_WEBHOOK_SECRET` と一致させます。
+- 10分まとめ通知は、`supabase_stock_change_batch_setup.sql` を実行後、Vaultに `stock_cron_secret`（Vercelの `CRON_SECRET` と同じ値）を作成し、`pg_cron` を有効化して `supabase_stock_change_batch_cron.sql` を実行します。
